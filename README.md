@@ -17,7 +17,7 @@ You can adjust the weight values for any of these inputs according to your guild
 
 ## Why ULTRA?
 
-Thatsmybis.com allows loot councils to sort out LC decisions before raid so people aren't standing around a corpse for 5 minutes.  But multiple characters have the same thing ranked #1 on their list, sometimes it's tricky to determine who should have prio without considering some external data.  If only there were a way to combine the fairness of point-based systems like DKP or EPGP with the simplicity of running loot on autopilot with Gargul.  
+Thatsmybis.com allows loot councils to sort out LC decisions before raid so people aren't standing around a corpse for 5 minutes.  But when multiple characters have the same thing ranked #1 on their list, sometimes it's tricky to determine who should have prio without considering some external data.  If only there were a way to combine the fairness of point-based systems like DKP or EPGP with the simplicity of running loot on autopilot with Gargul.  
 
 By combining ULTRA, TMB and Gargul, guilds can run a self-pruning loot sytem that prioritizes raiders who contribute the most to your team by showing up every week, without having to hand-jam spreadsheets or to even think about it while you're killing bosses.  
 
