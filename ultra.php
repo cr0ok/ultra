@@ -586,7 +586,7 @@ $queryPerformance = $db->prepare($sql);
 
 $sql = <<<SQL
     SELECT c.id, c.name || '-' || c.realm AS 'character', c.discord_name, c.discord_id, c.race, c.class, c.guild_rank,
-		p.spec,p.role,p.best,p.median,p.total,
+		p.spec,p.role,p.best,p.median,(p.best+p.median)/2 perf,p.total,
 		COUNT(r.id) AS 'attended', 
         (   SELECT COUNT(r2.id) 
 			FROM report r2 
@@ -599,7 +599,7 @@ $sql = <<<SQL
 		AND p.zone_id = z.id AND p.character_wcl_id = c.wcl_id) 
     WHERE z.name = :zone_name AND r.start_time >= :since_date AND 'attended' > 0 AND p.best > 0
     GROUP BY c.discord_id, c.id
-    ORDER BY c.class,p.role,c.guild_rank,c.name
+    ORDER BY c.class,p.role,perf DESC
 SQL;
 $queryZoneAP = $db->prepare($sql);
 
@@ -621,7 +621,7 @@ $queryNoShows = $db->prepare($sql);
 $apCSVFileName = 'reports/attendance_performance_'.slug($guildName).'_'.slug($performanceZone)
     .'_'.$curDateTime->format("Y-m-d").".csv";
 $apCSV = fopen($apCSVFileName,'w');
-$apHeaders = ['discord_name','no_shows','character','rank','race','class','spec','role','att','best','median','DPS'];
+$apHeaders = ['discord_name','no_shows','character','rank','race','class','spec','role','att','perf','best','median','DPS'];
 fputcsv($apCSV,$apHeaders);
 
 //$tbl = new Console_Table();
@@ -646,6 +646,7 @@ while ($ap = $queryZoneAP->fetch(PDO::FETCH_ASSOC)) {
         $ap['spec'],
         $ap['role'],
         round(($ap['attended']/$ap['available'])*100)."%",
+        round($ap['perf'],2),
         round($ap['best'],2),
         round($ap['median'],2),
         $ap['role'] == 'Healer' ? 0 : round($ap['total'],2)
