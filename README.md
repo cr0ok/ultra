@@ -17,9 +17,11 @@ You can adjust the weight values for any of these inputs according to your guild
 
 ## Why ULTRA?
 
-Thatsmybis.com allows loot councils to sort out LC decisions before raid so people aren't standing around a corpse for 5 minutes.  But sometimes it's tricky to determine who should have prio without considering some external data.  If only there were a way to combine the fairness of point-based systems like DKP or EPGP with the simplicity of running loot on autopilot with Gargul.  
+Thatsmybis.com allows loot councils to sort out LC decisions before raid so people aren't standing around a corpse for 5 minutes.  But multiple characters have the same thing ranked #1 on their list, sometimes it's tricky to determine who should have prio without considering some external data.  If only there were a way to combine the fairness of point-based systems like DKP or EPGP with the simplicity of running loot on autopilot with Gargul.  
 
-When used with TMB and Gargul, ULTRA is a long-term, self-pruning loot sytem that prioritizes raiders who contribute the most to your team by showing up every week.  Unlike point-based systems, it doesn't discourage taking upgrades.  In fact, only S-, A-, and B-tier items won with "main spec" rolls are considered.  
+By combining ULTRA, TMB and Gargul, guilds can run a self-pruning loot sytem that prioritizes raiders who contribute the most to your team by showing up every week, without having to hand-jam spreadsheets or to even think about it while you're killing bosses.  
+
+Like point-based systems, ULTRA favors the regular raider who hasn't won a big upgrade in a while but has been looking for one thing for a while.  Unlike point-based systems, ULTRA doesn't discourage taking upgrades since only S-, A-, and B-tier items won with "main spec" rolls are considered.  
 
 ## Features
 
@@ -29,6 +31,7 @@ When used with TMB and Gargul, ULTRA is a long-term, self-pruning loot sytem tha
 - Fixes raid-helper sign-ups with in-game character names
 - Outputs a performance report relevant to the guild's current progression zone, so you know who to keep inviting to raid
 - Outputs a customizable ULTRA prio recommendation for top wish listed items, clearly showing which characters should be given prio on which items according to their score
+- Everything is maintained in a local SQLite3 database called "roster.db" to support integration with 3rd party applications.
 
 ## How to use
 
@@ -39,7 +42,7 @@ When used with TMB and Gargul, ULTRA is a long-term, self-pruning loot sytem tha
 - Make sure you upload your raid logs to warcraftlogs.com after every raid.
 - Run the script with your config file as the only argument: ./ultra.php config.ini
 
-Check out the generated CSV file in the 'reports' directory to help you invite the best people to raid, and check out the one in 'prios' to help you set up prio lists on thatsmybis.com.
+Check out the generated CSV file in the 'reports' directory to help you invite the best players to raid, and check out the one in 'prios' to help you set up prio lists on thatsmybis.com.
 
 After that, the usual routine of exporting your TMB data into Gargul before raid and exporting loot from Gargul into TMB after raid is all you need.  Once loot is uploaded to TMB after raid, you can run this script again, set your prios again, export into Gargul, raid again, and so on.  
 
