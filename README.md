@@ -1,6 +1,6 @@
 # ULTRA
 
-A loot prio recommendation algorithm developed for The Unyielding-Mankrik which considers:
+A loot prio recommendation algorithm for LC guilds using thatsmybis.com which considers:
 
 - **U** - How many "big upgrades" (S-, A-, or B-tiered items) a player has received (on any character associated with their discord ID) in the zone where the item drops within the past 6 months, not counting items won with "off-spec" rolls
 - **L** - How long the item has been ranked #1 on the character's wish list
