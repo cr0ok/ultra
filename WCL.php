@@ -116,9 +116,11 @@ class WCL {
             $ret = json_decode(curl_exec($ch));
             curl_close($ch);
             //cache result
-            if (!empty($ret) && $storeToCache) {
+            if (!empty($ret) && !isset($ret->error) && $storeToCache) {
                 $this->storeToCache($gql,$ret);
-            } 
+            } else if (isset($ret->error)) {
+                echo "WCL API error: " . $ret->error . "\n";
+            }
         }
         return $ret;
     }
@@ -202,6 +204,10 @@ QUERY;
 QUERY;
         $res = $this->queryAPI($gql,true,21600);
         if (!$res) return $ret;
+        if (!isset($res->data->characterData)) {
+            var_dump($res);
+            return $ret;
+        }
         $data = $res->data->characterData->character;
         
         if (!empty($data)) {
@@ -381,6 +387,11 @@ QUERY;
 QUERY;
             $res = $this->queryAPI($gql,false);
             //echo $res->data->reportData->reports->current_page . " / " . $res->data->reportData->reports->last_page . "\n";
+            if (!isset($res->data)) {
+                
+                break;
+            }
+
             $hasMorePages = $res->data->reportData->reports->has_more_pages;
             foreach ($res->data->reportData->reports->data as $reportData) {
                 

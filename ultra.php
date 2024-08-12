@@ -457,7 +457,7 @@ foreach ($reports as $r) {
 
 foreach ($raiders as $wclId => $c) {
     //update database
-    $class = $wcl->gameClassNameById($c->classID);
+    //$class = $wcl->gameClassNameById($c->classID);
     
     $row = [
         'wcl_id' => $c->canonicalID,
@@ -473,16 +473,18 @@ foreach ($recentRaiders as $wclId => $zoneIds) {
     
     foreach ($zoneIds as $zoneId) {
         $zoneRankings = $wcl->zoneRankingsById($wclId,$zoneId);
-        $row = [
-            $wclId,
-            $zoneId,
-            $zoneRankings['spec'],
-            $zoneRankings['role'],
-            $zoneRankings['bestPerfAvg'],
-            $zoneRankings['medianPerfAvg'],
-            $zoneRankings['bestTotalAvg']
-        ];
-        $insertPerformance->execute($row);
+        if (!empty($zoneRankings)) {
+            $row = [
+                $wclId,
+                $zoneId,
+                $zoneRankings['spec'],
+                $zoneRankings['role'],
+                $zoneRankings['bestPerfAvg'],
+                $zoneRankings['medianPerfAvg'],
+                $zoneRankings['bestTotalAvg']
+            ];
+            $insertPerformance->execute($row);
+        }
     }
 }
 
@@ -844,7 +846,7 @@ foreach ($topWLItems as $index => $w) {
     ]);
     $zoneAttendance = $queryZoneAttendance->fetch(PDO::FETCH_ASSOC);
 
-    if ($numReports) {
+    if ($numReports && $numReports['num_reports'] > 0) {
         $mod = 1 / $numReports['num_reports'];
         if ($zoneAttendance && $zoneAttendance['attended'] > 0) {
             $R = min($zoneAttendance['attended'],$numReports['num_reports']) * $mod;
