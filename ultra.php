@@ -6,10 +6,17 @@ require("Blizzard.php");
 require("TMB.php");
 require("RaidHelper.php");
 //require_once 'Console/Table.php';
+require __DIR__ . "/vendor/autoload.php";
+
+$fetch = true;
 
 $ini = [];
 
+
 for ($i = 1; $i < $argc; $i++) {
+    if ($argv[$i] == "--no-fetch") {
+        $fetch = false;
+    }
     if (file_exists($argv[$i])) {
         $ini = parse_ini_file($argv[$i],true);
         break;
@@ -30,6 +37,14 @@ $performanceZone = $ini["general"]["performanceZone"];
 $sinceDate = new DateTime("now");
 $sinceDate->modify("-2 months");
 $raiderRank = $ini["general"]["raiderRank"]; //guild ranks between 0 (guild master) and this number are considered "raiders"
+$googleDeveloperKey = $ini["google"]["developerKey"];
+$googleSpreadsheetId = $ini["google"]["spreadsheetId"];
+$ranges = explode(",",$ini["google"]["ranges"]);
+$spreadsheetRanges = [];
+foreach ($ranges as $range) {
+    [$zone,$r] = explode("!",$range);
+    $spreadsheetRanges[$zone] = $r;
+}
 $rhApiKey = $ini["raid-helper"]["apiKey"]; //used to fix raid-helper signup names to match TMB character names
 $rhServerId = $ini["raid-helper"]["serverId"];
 $wclClientId = $ini["warcraftlogs"]["clientId"];
@@ -38,6 +53,12 @@ $wclGameVariant = $ini["warcraftlogs"]["gameVariant"];
 $blizzClientId = $ini["blizzard"]["clientId"];
 $blizzClientSecret = $ini["blizzard"]["clientSecret"];
 $blizzGameVariant = $ini["blizzard"]["gameVariant"];
+
+$minRecentAttendance = $ini["general"]["minRecentAttendance"];
+$minNumRaidsAttended = $ini["general"]["minNumRaidsAttended"];
+$weightSTier = $ini["general"]["weightSTier"];
+$weightATier = $ini["general"]["weightATier"];
+$weightBTier = $ini["general"]["weightBTier"];
 
 //ULTRA weights
 $weights = [
@@ -49,7 +70,7 @@ $weights = [
     'P' => (double)$ini["general"]["P"]
 ];
 
-$db = Database::getInstance();
+$db = Database::getInstance($fetch);
 $tmb = TMB::getInstance("character-json.json"); //fresh download from thatsmybis.com
 $wcl = WCL::getInstance($region,$serverTimeZone,$wclGameVariant,$wclClientId,$wclClientSecret);
 $blizz = Blizzard::getInstance($region,$serverTimeZone,$blizzGameVariant,$blizzClientId,$blizzClientSecret);
@@ -58,19 +79,95 @@ $relatedRealms = $blizz->relatedRealms($guildRealm);
 
 $rh = new RaidHelper($rhApiKey,$serverTimeZone,$serverTimeZone,$relatedRealms,$db);
 
+function slug($str) {
+    return str_replace([' ', "'"], ['-', ''], mb_strtolower($str));
+}
+
+$curDateTime = new DateTime("now");
+
 if (!file_exists('prios')) {
     mkdir('prios');
 }
 if (!file_exists('reports')) {
     mkdir('reports');
 }
-
-
-function slug($str) {
-    return str_replace([' ', "'"], ['-', ''], mb_strtolower($str));
+if (!file_exists('override')) {
+    mkdir('override');
 }
 
-//fetch gulid roster from blizzard
+//parse overrides
+$override = [
+    'character' => [],
+    'attendance' => []
+];
+
+//zone abbreviations
+$zoneAbbreviations = [
+    'zg' => "Zul'Gurub",
+    'aq20' => "Ruins of Ahn'Qiraj",
+    'mc' => "Molten Core",
+    'bwl' => "Blackwing Lair",
+    'aq40' => "Temple of Ahn'Qiraj",
+    'naxx' => "Naxxramas"
+];
+
+if (!$fetch) {
+    goto nofetch;
+}
+
+$overrideDir = new DirectoryIterator('override');
+foreach ($overrideDir as $fileInfo) {
+    if (!$fileInfo->isDot()) {
+        if (str_starts_with($fileInfo->getFilename(),'attendance')) {
+            //get zone and date
+            $nameParts = explode("-",$fileInfo->getFilename());
+            if (count($nameParts) > 2) {
+                $zoneAbbr = strtolower($nameParts[1]);
+                $raidDate = substr($nameParts[2],0,8);
+            }
+            if (array_key_exists($zoneAbbr,$zoneAbbreviations)) {
+                $zoneName = $zoneAbbreviations[$zoneAbbr];
+                $att = file($fileInfo->getPathname(),FILE_SKIP_EMPTY_LINES|FILE_IGNORE_NEW_LINES);
+                foreach ($att as $fullName) {
+                    $override['attendance'][$wcl->zoneIdByName($zoneName)][$raidDate][] = $fullName;
+                }
+            }
+        }
+    }
+}
+
+//check online spreadsheet for attendance override
+
+if (!empty($googleDeveloperKey) && !empty($googleSpreadsheetId)) {
+    $client = new \Google_Client;
+    $client->setApplicationName("Google Sheet Adapter");
+    $client->setDeveloperKey($googleDeveloperKey);
+    $client->setScopes([\Google_Service_Sheets::SPREADSHEETS]);
+    $client->setAccessType('offline');
+    $service = New Google_Service_Sheets($client);
+    foreach ($spreadsheetRanges as $zone => $range) {
+        $zoneLowerCase = strtolower($zone);
+        if (array_key_exists($zoneLowerCase,$zoneAbbreviations)) {
+            $zoneName = $zoneAbbreviations[$zoneLowerCase];
+            $zoneId = $wcl->zoneIdByName($zoneName);
+            $r = $zone."!".$range;
+            $res = $service->spreadsheets_values->get($googleSpreadsheetId,$r);
+            $values = $res->getValues();
+            if (!empty($values)) {
+                foreach ($values as $row) {
+                    if (!empty($row)) {
+                        $override['attendance'][$zoneId][$row[0]][] = $row[1];
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+
+
+//fetch guild roster from blizzard
 
 $sql = <<<SQL
     INSERT INTO character 
@@ -89,8 +186,6 @@ $insertCharacterFromBlizz = $db->prepare($sql);
 
 $r = $blizz->guildRoster($guildName,$guildRealm);
 
-
-$curDateTime = new DateTime("now");
 
 $db->beginTransaction();
 
@@ -429,11 +524,10 @@ foreach ($reports as $r) {
     $insertZone->execute([$r->zoneId,$wcl->zoneName($r->zoneId)]);
 
     $bRecentReport = $r->startDateTime > $sinceDate;
-
+   
 
     foreach ($r->characters as $c) {
-        
-        
+                
         $insertAttendance->execute([$r->id,$c->canonicalID]);
         $queryDateFirstAttendedZone->execute([$r->zoneId,$c->canonicalID]);
         
@@ -491,6 +585,47 @@ foreach ($recentRaiders as $wclId => $zoneIds) {
 
 $db->commit();
 
+// override attendance
+$sql = <<<SQL
+    SELECT wcl_id FROM character WHERE name = ? AND realm = ?
+SQL;
+$queryCharacterWCLId = $db->prepare($sql);
+
+
+$db->beginTransaction();
+
+foreach ($reports as $r) {
+    if ($r->zoneId <= 0) continue;
+    
+    
+
+    //get date of raid (not time)
+    $raidDate = $r->startDateTime->format('Ymd');
+
+    //add characters from attendance override
+    if (isset($override['attendance'][$r->zoneId][$raidDate])) {
+        foreach ($override['attendance'][$r->zoneId][$raidDate] as $overrideCharacter) {
+            echo "Overriding attendance for zone ".$r->zoneId . " on ". $raidDate 
+                . " -- ". $overrideCharacter . "\n";
+            //lookup WCL id
+            $parts = explode("-",$overrideCharacter);
+            $name = $parts[0];
+            $realm = $parts[1];
+            $queryCharacterWCLId->execute([$name,$realm]);
+            $wclId = $queryCharacterWCLId->fetch()[0];
+            $insertAttendance->execute([$r->id,$wclId]);
+            $queryDateFirstAttendedZone->execute([$r->zoneId,$wclId]);
+            $dateFirstAttendedZone = $queryDateFirstAttendedZone->fetch();
+            if (!$dateFirstAttendedZone) {
+                $insertZoneAttendance->execute([$r->zoneId,$wclId,$r->startDateTime->format('Y-m-d H:i:s')]);
+            }
+        }
+    }
+    
+}
+$db->commit();
+
+
 // fetch event data
 
 $sql = <<<SQL
@@ -544,7 +679,7 @@ foreach ($events as $e) {
 $db->commit();
 
 
-
+nofetch:
 
 $sql = <<<SQL
     SELECT 	z.id AS 'zone_id', z.name AS 'zone_name', 
@@ -564,15 +699,17 @@ $queryAttendance = $db->prepare($sql);
 
 $sql = <<<SQL
     SELECT
+        za.date_first,
 		COUNT(r.id) AS 'attended', 
-		(   SELECT COUNT(r2.id) 
+		(   SELECT COUNT(r2.id)
 			FROM report r2 
 			JOIN zone z2, zone_attendance za2, character c2
 			ON (z2.id=z.id AND z2.id=r2.zone_id AND za2.zone_id = z2.id 
 				AND za2.character_wcl_id = c2.wcl_id AND c2.wcl_id = c.wcl_id)
 			WHERE r2.start_time >= za2.date_first AND r2.start_time >= :since_date) AS 'available' 
-    FROM character c JOIN report r, zone z, attendance a
-    ON (r.id=a.report_id AND z.id = r.zone_id AND c.wcl_id = a.character_wcl_id) 
+    FROM character c JOIN report r, zone z, attendance a, zone_attendance za
+    ON (r.id=a.report_id AND z.id = r.zone_id AND c.wcl_id = a.character_wcl_id
+        AND za.character_wcl_id = c.wcl_id AND za.zone_id = z.id) 
     WHERE c.discord_id = :discord_id AND z.name = :zone_name AND r.start_time >= :since_date
 SQL;
 $queryZoneAttendance = $db->prepare($sql);
@@ -801,11 +938,11 @@ foreach ($topWLItems as $index => $w) {
         $w['bigWins'][$tier]++;
         $mod = 0;
         if ($tier == 1) {
-            $mod = 0.10;
+            $mod = $weightSTier;  
         } else if ($tier == 2) {
-            $mod = 0.05;
+            $mod = $weightATier;  
         } else if ($tier == 3) {
-            $mod = 0.025;
+            $mod = $weightBTier;  
         }
         $U -= $mod;
     }
@@ -816,12 +953,27 @@ foreach ($topWLItems as $index => $w) {
     $w['dateLastUpgrade'] = $dateLastUpgrade->getTimestamp() > 0 
         ? $dateLastUpgrade->format('Y-m-d') : '';
     //L - time on list 
+
+    $queryZoneAttendance->execute([
+        'discord_id' => $w['discord_id'],
+        'zone_name' => $w['zone_name'],
+        'since_date' => 0
+    ]);
+    $historicalAttendance = $queryZoneAttendance->fetch(PDO::FETCH_ASSOC);
+    $dateFirstRaid = DateTime::createFromFormat('Y-m-d H:i:s',$historicalAttendance['date_first']);
+    $secsSinceFirstRaid = $dateFirstRaid ? ($curDateTime->getTimestamp() - $dateFirstRaid->getTimestamp()) : 0;
+    
+    
     $L = 0;
     $secsOnList = $w['days_on_list'] * 86400;
+    if ($secsSinceFirstRaid == 0 || $secsOnList > $secsSinceFirstRaid) {
+        echo $w['fullname'] . " ranked ".$w['item'] . " #1 before first raid, adjusting L.\n";
+        $secsOnList = $secsSinceFirstRaid;
+    }
     $L = $secsOnList / $sixMonths;
     $L = min($L,1);
     $w['L'] = $L;
-    $w['listDays'] = round($w['days_on_list']);
+    $w['listDays'] = round($secsOnList/86400);
 
     //T - time since big upgrade 
     $T = 1;
@@ -885,18 +1037,21 @@ foreach ($topWLItems as $index => $w) {
     $A *= $weights['A'];
     $P *= $weights['P'];
     
-    $ULTRA = ($U + $L + $T + $R + $A + $P) / 6;
+    $ULTRA = ($U + $L + $T + $R + $A + $P);
     
     $ULTRA = min(1,$ULTRA);
     $w['ULTRA'] = round($ULTRA,3);
 
     $w['eligible'] = true;
     
-    if ($w['level'] < 60 || $w['recentAttendance'] < 0.5 || $w['numRaidsAttended'] < 8 || $w['P'] == 0) { 
-        //not level 60, haven't done 8 raids or < 50% recent attendance, or P == 0  
+    if ($w['level'] < 60 
+        || $w['recentAttendance'] < $minRecentAttendance 
+        || $w['numRaidsAttended'] < $minNumRaidsAttended 
+        || $w['P'] == 0) { 
         
         $w['eligible'] = false;
     } 
+    
     $topWLItems[$index] = $w;
     $updateWishlistWithUltra->execute([$w['ULTRA'],$w['tmb_id'],$w['item_id']]);
     

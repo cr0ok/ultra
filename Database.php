@@ -141,14 +141,16 @@ class Database {
             }
     }
 
-    public static function getInstance() {
+    public static function getInstance($bCreateTables = TRUE) {
         if (empty(self::$instance)) {
             if(empty(self::$instance)) {
 
                 try {
                     self::$instance = new PDO('sqlite:roster.db');
-                    self::$instance->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
-                    self::createTables();
+                    self::$instance->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    if ($bCreateTables) {
+                        self::createTables();
+                    }
                 } catch(PDOException $error) {
                     echo $error->getMessage();
                 }

@@ -1,6 +1,8 @@
 prios/
 reports/
 cache/
+override/
+vendor/
 character-json.json
 config.ini
 roster.db
