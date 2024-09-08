@@ -162,9 +162,7 @@ if (!empty($googleDeveloperKey) && !empty($googleSpreadsheetId)) {
             }
         }
     }
-
 }
-
 
 
 //fetch guild roster from blizzard
@@ -609,16 +607,23 @@ foreach ($reports as $r) {
                 . " -- ". $overrideCharacter . "\n";
             //lookup WCL id
             $parts = explode("-",$overrideCharacter);
-            $name = $parts[0];
-            $realm = $parts[1];
-            $queryCharacterWCLId->execute([$name,$realm]);
-            $wclId = $queryCharacterWCLId->fetch()[0];
-            $insertAttendance->execute([$r->id,$wclId]);
-            $queryDateFirstAttendedZone->execute([$r->zoneId,$wclId]);
-            $dateFirstAttendedZone = $queryDateFirstAttendedZone->fetch();
-            if (!$dateFirstAttendedZone) {
-                $insertZoneAttendance->execute([$r->zoneId,$wclId,$r->startDateTime->format('Y-m-d H:i:s')]);
-            }
+            $name = ucfirst(strtolower($parts[0]));
+            $realm = ucfirst(strtolower($parts[1]));
+            if ($queryCharacterWCLId->execute([$name,$realm])) {
+                $res = $queryCharacterWCLId->fetch(PDO::FETCH_ASSOC);
+                if ($res) {
+                    $wclId = $res["wcl_id"];
+                    $insertAttendance->execute([$r->id,$wclId]);
+                    $queryDateFirstAttendedZone->execute([$r->zoneId,$wclId]);
+                    $dateFirstAttendedZone = $queryDateFirstAttendedZone->fetch();
+                    if (!$dateFirstAttendedZone) {
+                        $insertZoneAttendance->execute([$r->zoneId,$wclId,$r->startDateTime->format('Y-m-d H:i:s')]);
+                    }
+                } else {
+                    echo "Attendance override: no character WCL id found for " . $name."-".$realm."\n";
+                }
+                
+            } 
         }
     }
     
