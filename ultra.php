@@ -5,6 +5,7 @@ require("WCL.php");
 require("Blizzard.php");
 require("TMB.php");
 require("RaidHelper.php");
+require("Discord.php");
 //require_once 'Console/Table.php';
 require __DIR__ . "/vendor/autoload.php";
 
@@ -1039,57 +1040,11 @@ if (!empty($issues)) {
                     ."of the in-game character you wish to bring, "
                     ."including any special characters, so we can add you to the roster.  Thank you!";
     }
-    $content = implode("\r\n",$content);
 
-    $postFields = array(
-        "username" => "Wonder Man",
-        "content" => $content,
-        //"file" => curl_file_create("prios/$prioCSVFileName","text/csv",$prioCSVFileName),
-    );
-
-    $ch = curl_init( $signupWebhook );
-    curl_setopt($ch,CURLOPT_HTTPHEADER,array('Content-type: multipart/form-data'));
-    curl_setopt( $ch, CURLOPT_POST, 1);
-    curl_setopt( $ch, CURLOPT_POSTFIELDS, $postFields);
-    curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
-    curl_setopt( $ch, CURLOPT_HEADER, 0);
-    curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
-
-    $response = curl_exec( $ch );
-
-    curl_close( $ch );
+    $wh = new Webhook($signupWebhook);
+    $wh->post($content);
 
 }
-
-/*
-$sql = <<<SQL
-    SELECT * FROM 
-        (SELECT e.id AS 'event_id', e.zone_name, e.start, e.name as 'event_name',
-            c.name, c.realm, c.discord_id, c.id AS 'character_id',
-            es.name AS 'signup_name', 
-            es.position, es.role, es.bench, es.late, es.tentative, es.absent 
-        FROM event_signup es 
-        JOIN event e, character c 
-        ON (c.discord_id=es.discord_id AND es.class = c.class AND e.id = es.event_id) 
-        WHERE e.start >= ? AND server_id = "$rhServerId"
-        GROUP BY event_id,character_id ORDER BY event_id,character_id)
-    GROUP BY event_id,discord_id ORDER BY event_id,position;
-SQL;
-$querySignups = $db->prepare($sql);
-
-$querySignups->execute([$curDateTime->format('Y-m-d H:i:s')]);
-
-$currentEventId = 0;
-while ($s = $querySignups->fetch(PDO::FETCH_ASSOC)) {
-    //fix signup name
-    $fullName = $s['name'].'-'.$s['realm'];
-    $fullName = str_replace(" ","",$fullName);
-    if ($s['signup_name'] !== $fullName) {
-        echo "Fixing signup name for event ".$s['event_name'].": ". $s['signup_name']. " to $fullName\n";
-        $rh->fixEventSignupName($s['event_id'],$s['discord_id'],$fullName);
-    } 
-}
-*/
 
 //find top wishlist items grouped by zone name
 $sql = <<<SQL
@@ -1381,25 +1336,11 @@ if (!empty($topWLItems)) {
              . " If this was just posted, please know we may be"
              . " in the process of adjusting prio list ranks."
              . " As such, the 'current prio rank' column here may be out of date."
-             . " Check thatsmybis.com for the latest available information.";
-    
-    $postFields = array(
-        "username" => "ULTRAMAN",
-        "content" => $content,
-        "file" => curl_file_create("prios/$prioCSVFileName","text/csv",$prioCSVFileName),
-    );
+             . " Check [thatsmybis](https://thatsmybis.com) for the latest information.";
 
-    $ch = curl_init( $prioWebhook );
-    curl_setopt($ch,CURLOPT_HTTPHEADER,array('Content-type: multipart/form-data'));
-    curl_setopt( $ch, CURLOPT_POST, 1);
-    curl_setopt( $ch, CURLOPT_POSTFIELDS, $postFields);
-    curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
-    curl_setopt( $ch, CURLOPT_HEADER, 0);
-    curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
-
-    $response = curl_exec( $ch );
-
-    curl_close( $ch );
+    $wh->setUrl($prioWebhook);
+    $wh->setUsername("ULTRAMAN");
+    $wh->post([$content],"prios/$prioCSVFileName","text/csv",$prioCSVFileName);
 
 }
 

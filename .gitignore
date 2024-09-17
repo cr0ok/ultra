@@ -6,3 +6,4 @@ vendor/
 *character-json*.json
 config.ini
 roster.db*
+*.dat
