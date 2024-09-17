@@ -3,6 +3,6 @@ reports/
 cache/
 override/
 vendor/
-character-json.json
+*character-json*.json
 config.ini
-roster.db
+roster.db*

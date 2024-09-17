@@ -146,6 +146,7 @@ class RaidHelper {
     }
     
     public function fixEventSignupName($eventId,$discordId,$fullName) {
+        $fullName = str_replace(" ","",$fullName); //strip spaces
         $url = self::$sAPI."/v2/events/".$eventId."/signups/".$discordId;
         $ch = curl_init();
         $auth = 'Authorization: '.$this->mApiKey;

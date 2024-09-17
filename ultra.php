@@ -16,10 +16,8 @@ $ini = [];
 for ($i = 1; $i < $argc; $i++) {
     if ($argv[$i] == "--no-fetch") {
         $fetch = false;
-    }
-    if (file_exists($argv[$i])) {
+    } elseif (file_exists($argv[$i])) {
         $ini = parse_ini_file($argv[$i],true);
-        break;
     }
 }
 
@@ -33,6 +31,9 @@ $guildRealm = $ini["general"]["guildRealm"];
 $region = $ini["general"]["region"];
 $serverTimeZone = $ini["general"]["serverTimeZone"];
 $faction = $ini["general"]["faction"];
+$tmbFilepath = $ini["general"]["tmbFilepath"];
+$prioWebhook = $ini["general"]["prioWebhook"];
+$signupWebhook = $ini["general"]["signupWebhook"];
 $performanceZone = $ini["general"]["performanceZone"];
 $sinceDate = new DateTime("now");
 $sinceDate->modify("-2 months");
@@ -71,7 +72,10 @@ $weights = [
 ];
 
 $db = Database::getInstance($fetch);
-$tmb = TMB::getInstance("character-json.json"); //fresh download from thatsmybis.com
+$tmb = false;
+if (!empty($tmbFilepath)) {
+    $tmb = TMB::getInstance($tmbFilepath); //fresh download from thatsmybis.com
+}
 $wcl = WCL::getInstance($region,$serverTimeZone,$wclGameVariant,$wclClientId,$wclClientSecret);
 $blizz = Blizzard::getInstance($region,$serverTimeZone,$blizzGameVariant,$blizzClientId,$blizzClientSecret);
 
@@ -102,17 +106,78 @@ $override = [
 ];
 
 //zone abbreviations
-$zoneAbbreviations = [
-    'zg' => "Zul'Gurub",
-    'aq20' => "Ruins of Ahn'Qiraj",
-    'mc' => "Molten Core",
-    'bwl' => "Blackwing Lair",
-    'aq40' => "Temple of Ahn'Qiraj",
-    'naxx' => "Naxxramas"
+$gZoneAbbreviations = [
+    'zg' => $wcl->zoneIdByName("Zul'Gurub"),
+    'aq20' => $wcl->zoneIdByName("Ruins of Ahn'Qiraj"),
+    'mc' => $wcl->zoneIdByName("Molten Core"),
+    'bwl' => $wcl->zoneIdByName("Blackwing Lair"),
+    'aq40' => $wcl->zoneIdByName("Temple of Ahn'Qiraj"),
+    'naxx' => $wcl->zoneIdByName("Naxxramas")
 ];
 
-if (!$fetch) {
-    goto nofetch;
+function camelCase($inStr,$delim = ' ', $ucfirst = true) {
+    $ret = '';
+    $words = explode($delim,$inStr);
+    foreach ($words as $index => $word) {
+        if ($index == 0 && !$ucfirst) {
+            $ret .= $word;
+        } else {
+            $ret .= ucfirst($word);
+        }
+    }
+    return $ret;
+}
+
+function unCamelCase($inStr, $delim = ' ') {
+    $formattedStr = '';
+    $re = '/
+          (?<=[a-z])
+          (?=[A-Z])
+        | (?<=[A-Z])
+          (?=[A-Z][a-z])
+        /x';
+    $a = preg_split($re,$inStr);
+    $formattedStr = implode($delim,$a);
+    return $formattedStr;
+}
+
+function parseDiscordFile($filePath) {
+    global $gZoneAbbreviations;
+    $ret = [];
+    $file = new SplFileObject($filePath);
+    $file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY 
+                    | SplFileObject::DROP_NEW_LINE | SplFileObject::READ_AHEAD);
+    foreach ($file as $row) {
+        
+
+        [$fullName,$class,$discordId] = $row;
+        if (!isset($ret[$discordId])) {
+            $ret[$discordId] = [];
+        }
+        $nameParts = explode("-",$fullName);
+        $name = $nameParts[0];
+        $realm = unCamelCase($nameParts[1]);
+
+        if (isset($row[3]) && $row[3]) {
+            $banned = true;
+        } else {
+            $banned = false;
+        }
+
+        $zoneId = false;
+        if (isset($row[4]) && array_key_exists($row[4],$gZoneAbbreviations)) {
+            $zoneId = $gZoneAbbreviations[$row[4]];
+        }
+        $ret[$discordId][] = [
+            "name" => $name,
+            "realm" => $realm,
+            "class" => $class,
+            "banned" => $banned,
+            "zoneId" => $zoneId,
+        ];
+
+    }
+    return $ret;
 }
 
 $overrideDir = new DirectoryIterator('override');
@@ -120,20 +185,42 @@ foreach ($overrideDir as $fileInfo) {
     if (!$fileInfo->isDot()) {
         if (str_starts_with($fileInfo->getFilename(),'attendance')) {
             //get zone and date
-            $nameParts = explode("-",$fileInfo->getFilename());
-            if (count($nameParts) > 2) {
-                $zoneAbbr = strtolower($nameParts[1]);
-                $raidDate = substr($nameParts[2],0,8);
-            }
-            if (array_key_exists($zoneAbbr,$zoneAbbreviations)) {
-                $zoneName = $zoneAbbreviations[$zoneAbbr];
-                $att = file($fileInfo->getPathname(),FILE_SKIP_EMPTY_LINES|FILE_IGNORE_NEW_LINES);
-                foreach ($att as $fullName) {
-                    $override['attendance'][$wcl->zoneIdByName($zoneName)][$raidDate][] = $fullName;
+            $nameParts = explode("-",$fileInfo->getBasename('.txt'));
+            if (count($nameParts) == 3) {
+                $zoneAbbr = "";
+                $zoneId = "";
+                if (!is_numeric($nameParts[1])) {
+                    $zoneAbbr = strtolower($nameParts[1]);
+                } else {
+                    $zoneId = $nameParts[1];
                 }
+                $raidDate = $nameParts[2];
+                if (empty($zoneAbbr) && array_key_exists($zoneAbbr,$gZoneAbbreviations)) {
+                    $zoneId = $gZoneAbbreviations[$zoneAbbr];
+                }
+                if (!empty($zoneId)) {
+                    $att = file($fileInfo->getPathname(),FILE_SKIP_EMPTY_LINES|FILE_IGNORE_NEW_LINES);
+                    foreach ($att as $fullName) {
+                        $override['attendance'][$zoneId][$raidDate][] = $fullName;
+                    }
+                } else {
+                    echo "Unable to find zone ID in attendance override.\n";
+                }
+            }
+        } elseif (str_starts_with($fileInfo->getFilename(),'discord')) {
+            $nameParts = explode("-",$fileInfo->getBasename('.csv'));
+            if (count($nameParts) == 2) {
+               $serverId = $nameParts[1]; 
+               if ($serverId == $rhServerId) {
+                $override['character'] = parseDiscordFile($fileInfo->getPathname());
+               }
             }
         }
     }
+}
+
+if (!$fetch) {
+    goto nofetch;
 }
 
 //check online spreadsheet for attendance override
@@ -147,9 +234,8 @@ if (!empty($googleDeveloperKey) && !empty($googleSpreadsheetId)) {
     $service = New Google_Service_Sheets($client);
     foreach ($spreadsheetRanges as $zone => $range) {
         $zoneLowerCase = strtolower($zone);
-        if (array_key_exists($zoneLowerCase,$zoneAbbreviations)) {
-            $zoneName = $zoneAbbreviations[$zoneLowerCase];
-            $zoneId = $wcl->zoneIdByName($zoneName);
+        if (array_key_exists($zoneLowerCase,$gZoneAbbreviations)) {
+            $zoneId = $gZoneAbbreviations[$zoneLowerCase];
             $r = $zone."!".$range;
             $res = $service->spreadsheets_values->get($googleSpreadsheetId,$r);
             $values = $res->getValues();
@@ -163,7 +249,6 @@ if (!empty($googleDeveloperKey) && !empty($googleSpreadsheetId)) {
         }
     }
 }
-
 
 //fetch guild roster from blizzard
 
@@ -181,39 +266,57 @@ $sql = <<<SQL
 SQL;
 $insertCharacterFromBlizz = $db->prepare($sql);
 
-
 $r = $blizz->guildRoster($guildName,$guildRealm);
 
+if (isset($r->members)) {
 
-$db->beginTransaction();
+    $db->beginTransaction();
 
-foreach ($r->members as $member) {    
-    if ($member->character->level == 60) {
-        
-        $iLvl = 0;
-        $lastLogin = new DateTime();
-        $lastLogin->setTimestamp(0);
-        
-        
-        $row = [
-            $member->character->id,
-            $member->character->name,
-            $member->character->realm->name,
-            $guildName,
-            $member->character->level,
-            $blizz->playableRaceById($member->character->playable_race->id),
-            $blizz->playableClassById($member->character->playable_class->id),
-            $member->rank,
-        ];
-        echo "Inserting " . $member->character->name . "-".$member->character->realm->name."\n";
-        $insertCharacterFromBlizz->execute($row);
-        
-    }
-} 
-$db->commit();
+    foreach ($r->members as $member) {    
+        if ($member->character->level == 60) {
+            
+            $iLvl = 0;
+            $lastLogin = new DateTime();
+            $lastLogin->setTimestamp(0);
+            
+            
+            $row = [
+                $member->character->id,
+                $member->character->name,
+                $member->character->realm->name,
+                $guildName,
+                $member->character->level,
+                $blizz->playableRaceById($member->character->playable_race->id),
+                $blizz->playableClassById($member->character->playable_class->id),
+                $member->rank,
+            ];
+            echo "Inserting " . $member->character->name . "-".$member->character->realm->name."\n";
+            $insertCharacterFromBlizz->execute($row);
+            
+        }
+    } 
+    $db->commit();
+} else {
+    echo "Unable to access guild roster information from Blizzard.\n";
+    var_dump($r);
+}
 
+//fetch discord & TMB data
 
-//fetch TMB data
+$sql = <<<SQL
+    INSERT INTO character (
+        discord_id, name, realm
+    )
+    VALUES (
+        :discord_id, :name, :realm
+    )
+    ON CONFLICT (id) DO
+    UPDATE
+    SET discord_id = excluded.discord_id
+SQL;
+
+$insertCharacterFromOverride = $db->prepare($sql);
+
 $sql = <<<SQL
     UPDATE character
     SET tmb_id = :tmb_id,
@@ -271,83 +374,69 @@ $insertPrio = $db->prepare($sql);
 
 $db->beginTransaction();
 
-foreach ($tmb->roster() as $c) {
-    
-    $row = [
-        'tmb_id' => $c['tmb_id'],
-        'name' => $c['name'],
-        'realm' => $c['realm'],
-        'race' => $c['race'],
-        'class' => $c['class'],
-        'level' => $c['level'],
-        'discord_name' => $c['discord_name'],
-        'discord_id' => $c['discord_id'],
-        'raid_group_name' => $c['raid_group_name'],
-        'prof_1' => $c['prof_1'],
-        'prof_2' => $c['prof_2'],
-        'spec' => $c['spec'],
-        'archetype' => $c['archetype'],
-        'sub_archetype' => $c['sub_archetype'],
-        'public_note' => $c['public_note'],
-        'officer_note' => $c['officer_note'],
-    ];
-    //var_dump($update_row);
-    //remove columns not used in UPDATE to prevent column count mismatch
-    $update_row = array_diff_key($row,['race' => NULL, 'level' => NULL, 'class' => NULL]);
-
-    $updateCharacterFromTMB->execute($update_row);
-    
-    $insertCharacterFromTMB->execute($row);
-    echo "Updated " . $c['name'] . " discord id " .$c['discord_id']. "\n";
-
-    //get received, wishlist, and prios
-    foreach ($c['received'] as $i) {
-        
-        $lootItem = $tmb->lootItemById($i->itemId);
-        if ($lootItem) {
-            $itemRow = [ //id,name,zone_name,source,guild_tier,url
-                $i->itemId,
-                $lootItem->name,
-                $lootItem->zoneName,
-                $lootItem->source,
-                $i->tier,
-                $lootItem->url
-            ];
-            $insertItem->execute($itemRow);
-        } 
-        $recRow = [ //character_tmb_id,item_id,greed,received_at
-            $c['tmb_id'],
-            $i->itemId,
-            $i->bOffspec,
-            $i->dateReceived->format("Y-m-d H:i:s")
+foreach ($override['character'] as $discordId => $characters) {
+    foreach ($characters as $character) {
+        $row = [
+            'discord_id' => $discordId,
+            'name' => $character["name"],
+            'realm' => $character["realm"]
         ];
-        $insertReceived->execute($recRow);
+        $insertCharacterFromOverride->execute($row);
     }
-    foreach ($c['wishlist'] as $i) {
-        $lootItem = $tmb->lootItemById($i->itemId);
-        if ($lootItem) {
-            $itemRow = [ //id,name,zone_name,source,guild_tier,url
-                $i->itemId,
-                $lootItem->name,
-                $lootItem->zoneName,
-                $lootItem->source,
-                $i->tier,
-                $lootItem->url
-            ];
-            $insertItem->execute($itemRow);
-        } 
-        $wlRow = [ //character_tmb_id,item_id,rank,received_at,created_at,updated_at
-            $c['tmb_id'],
-            $i->itemId,
-            $i->order,
-            $i->bOffspec,
-            $i->bReceived ? $i->dateReceived->format("Y-m-d H:i:s") : 0,
-            $i->dateCreated->format("Y-m-d H:i:s"),
-            $i->dateUpdated->format("Y-m-d H:i:s")
+}
+$db->commit();
+
+$topWLZoneCharacters = [];
+
+if ($tmb) {
+
+    $db->beginTransaction();
+
+    foreach ($tmb->roster() as $c) {
+        $fullName = $c['name']."-".$c['realm'];
+        
+        $row = [
+            'tmb_id' => $c['tmb_id'],
+            'name' => $c['name'],
+            'realm' => unCamelCase($c['realm']),
+            'race' => $c['race'],
+            'class' => $c['class'],
+            'level' => $c['level'],
+            'discord_name' => $c['discord_name'],
+            'discord_id' => $c['discord_id'],
+            'raid_group_name' => $c['raid_group_name'],
+            'prof_1' => $c['prof_1'],
+            'prof_2' => $c['prof_2'],
+            'spec' => $c['spec'],
+            'archetype' => $c['archetype'],
+            'sub_archetype' => $c['sub_archetype'],
+            'public_note' => $c['public_note'],
+            'officer_note' => $c['officer_note'],
         ];
-        $insertWishlist->execute($wlRow);
-        /*
-        if ($i->bReceived) {
+        //var_dump($update_row);
+        //remove columns not used in UPDATE to prevent column count mismatch
+        $update_row = array_diff_key($row,['race' => NULL, 'level' => NULL, 'class' => NULL]);
+
+        $updateCharacterFromTMB->execute($update_row);
+        
+        $insertCharacterFromTMB->execute($row);
+        echo "Updated " . $c['name'] . " discord id " .$c['discord_id']. "\n";
+
+        //get received, wishlist, and prios
+        foreach ($c['received'] as $i) {
+            
+            $lootItem = $tmb->lootItemById($i->itemId);
+            if ($lootItem) {
+                $itemRow = [ //id,name,zone_name,source,guild_tier,url
+                    $i->itemId,
+                    $lootItem->name,
+                    $lootItem->zoneName,
+                    $lootItem->source,
+                    $i->tier,
+                    $lootItem->url
+                ];
+                $insertItem->execute($itemRow);
+            } 
             $recRow = [ //character_tmb_id,item_id,greed,received_at
                 $c['tmb_id'],
                 $i->itemId,
@@ -356,35 +445,77 @@ foreach ($tmb->roster() as $c) {
             ];
             $insertReceived->execute($recRow);
         }
-        */
-    }
-    foreach ($c['prios'] as $i) {
-        $lootItem = $tmb->lootItemById($i->itemId);
-        $itemRow = [ //id,name,zone_name,source,guild_tier,url
-            $i->itemId,
-            $lootItem->name,
-            $lootItem->zoneName,
-            $lootItem->source,
-            $i->tier,
-            $lootItem->url
-        ];
-        $insertItem->execute($itemRow);
-        $prioRow = [ //character_tmb_id,item_id,rank,received_at,created_at,updated_at
-            $c['tmb_id'],
-            $i->itemId,
-            $i->order,
-            $i->bReceived ? $i->dateReceived->format("Y-m-d H:i:s") : 0,
-            $i->dateCreated->format("Y-m-d H:i:s"),
-            $i->dateUpdated->format("Y-m-d H:i:s")
-        ];
-        $insertPrio->execute($prioRow);
-    }
+        foreach ($c['wishlist'] as $i) {
+            $lootItem = $tmb->lootItemById($i->itemId);
+            if ($lootItem) {
+                $itemRow = [ //id,name,zone_name,source,guild_tier,url
+                    $i->itemId,
+                    $lootItem->name,
+                    $lootItem->zoneName,
+                    $lootItem->source,
+                    $i->tier,
+                    $lootItem->url
+                ];
+                $insertItem->execute($itemRow);
+            } 
+            $wlRow = [ //character_tmb_id,item_id,rank,received_at,created_at,updated_at
+                $c['tmb_id'],
+                $i->itemId,
+                $i->order,
+                $i->bOffspec,
+                $i->bReceived ? $i->dateReceived->format("Y-m-d H:i:s") : 0,
+                $i->dateCreated->format("Y-m-d H:i:s"),
+                $i->dateUpdated->format("Y-m-d H:i:s")
+            ];
+            $insertWishlist->execute($wlRow);
+
+            if ($i->order == 1 && !empty($lootItem->zoneName)) {
+                //top wish listed item
+                $z = $lootItem->zoneName;
+                if (!isset($topWLZoneCharacters[$z])){
+                    $topWLZoneCharacters[$z] = [];
+                }
+                $topWLZoneCharacters[$z][] = $fullName;
+            }
+            /*
+            if ($i->bReceived) {
+                $recRow = [ //character_tmb_id,item_id,greed,received_at
+                    $c['tmb_id'],
+                    $i->itemId,
+                    $i->bOffspec,
+                    $i->dateReceived->format("Y-m-d H:i:s")
+                ];
+                $insertReceived->execute($recRow);
+            }
+            */
+        }
+        foreach ($c['prios'] as $i) {
+            $lootItem = $tmb->lootItemById($i->itemId);
+            $itemRow = [ //id,name,zone_name,source,guild_tier,url
+                $i->itemId,
+                $lootItem->name,
+                $lootItem->zoneName,
+                $lootItem->source,
+                $i->tier,
+                $lootItem->url
+            ];
+            $insertItem->execute($itemRow);
+            $prioRow = [ //character_tmb_id,item_id,rank,received_at,created_at,updated_at
+                $c['tmb_id'],
+                $i->itemId,
+                $i->order,
+                $i->bReceived ? $i->dateReceived->format("Y-m-d H:i:s") : 0,
+                $i->dateCreated->format("Y-m-d H:i:s"),
+                $i->dateUpdated->format("Y-m-d H:i:s")
+            ];
+            $insertPrio->execute($prioRow);
+        }
 
 
+    }
+
+    $db->commit();
 }
-
-$db->commit();
-
 
 //get profiles for those not in guild
 
@@ -505,11 +636,14 @@ $insertPerformance = $db->prepare($sql);
 
 $reports = $wcl->reports($guildName,$guildRealm);
 
-$raiders = array();
-$recentRaiders = array();
+$raiders = [];
+$needWclRankings = [];
+
 
 
 $db->beginTransaction();
+
+$performanceZoneId = $wcl->zoneIdByName($performanceZone);
 
 foreach ($reports as $r) {
     if ($r->zoneId <= 0) continue;
@@ -535,17 +669,25 @@ foreach ($reports as $r) {
         }
 
         $raiders[$c->canonicalID] = $c;
-        if ($bRecentReport) {
-            if (!isset($recentRaiders[$c->canonicalID])) {
-                $recentRaiders[$c->canonicalID] = array();
-            }
-            if (!in_array($r->zoneId,$recentRaiders[$c->canonicalID])) {
-                $recentRaiders[$c->canonicalID][] = $r->zoneId;
-            }
-        }
 
+        $fullName = $c->name."-".$c->server->name;
+        $zoneName = $wcl->zoneName($r->zoneId);
+        
+        if ($bRecentReport) {
+            if ($r->zoneId == $performanceZoneId
+                || (isset($topWLZoneCharacters[$zoneName]) 
+                    && in_array($fullName,$topWLZoneCharacters[$zoneName]))) {
+                if (!isset($needWclRankings[$c->canonicalID])) {
+                    $needWclRankings[$c->canonicalID] = [];
+                }
+                if (!in_array($r->zoneId,$needWclRankings[$c->canonicalID])) {
+                    $needWclRankings[$c->canonicalID][] = $r->zoneId;
+                }
+            } 
+        }    
     }
 }
+
 
 foreach ($raiders as $wclId => $c) {
     //update database
@@ -554,13 +696,13 @@ foreach ($raiders as $wclId => $c) {
     $row = [
         'wcl_id' => $c->canonicalID,
         'name' => $c->name,
-        'realm' => $c->server->name
+        'realm' => unCamelCase($c->server->name)
     ];
     $updateCharacterFromWCL->execute($row);
 }
 
 
-foreach ($recentRaiders as $wclId => $zoneIds) {
+foreach ($needWclRankings as $wclId => $zoneIds) {
     //get zoneRankings
     
     foreach ($zoneIds as $zoneId) {
@@ -608,7 +750,11 @@ foreach ($reports as $r) {
             //lookup WCL id
             $parts = explode("-",$overrideCharacter);
             $name = ucfirst(strtolower($parts[0]));
-            $realm = ucfirst(strtolower($parts[1]));
+            $realm = unCamelCase($parts[1]);
+            if (!str_contains($realm,' ')) {
+                $realm = ucfirst(strtolower($realm));
+            }
+
             if ($queryCharacterWCLId->execute([$name,$realm])) {
                 $res = $queryCharacterWCLId->fetch(PDO::FETCH_ASSOC);
                 if ($res) {
@@ -629,7 +775,6 @@ foreach ($reports as $r) {
     
 }
 $db->commit();
-
 
 // fetch event data
 
@@ -685,7 +830,7 @@ $db->commit();
 
 
 nofetch:
-
+/*
 $sql = <<<SQL
     SELECT 	z.id AS 'zone_id', z.name AS 'zone_name', 
 		COUNT(r.id) AS 'attended', 
@@ -701,6 +846,7 @@ $sql = <<<SQL
     GROUP BY zone_id;
 SQL;
 $queryAttendance = $db->prepare($sql);
+*/
 
 $sql = <<<SQL
     SELECT
@@ -765,7 +911,7 @@ $queryNoShows = $db->prepare($sql);
 $apCSVFileName = 'reports/attendance_performance_'.slug($guildName).'_'.slug($performanceZone)
     .'_'.$curDateTime->format("Y-m-d").".csv";
 $apCSV = fopen($apCSVFileName,'w');
-$apHeaders = ['discord_name','no_shows','character','rank','race','class','spec','role','att','perf','best','median','DPS'];
+$apHeaders = ['discord','no_shows','character','rank','race','class','spec','role','att','perf','best','median','DPS'];
 fputcsv($apCSV,$apHeaders);
 
 //$tbl = new Console_Table();
@@ -781,7 +927,7 @@ while ($ap = $queryZoneAP->fetch(PDO::FETCH_ASSOC)) {
         //$tbl->addSeparator();
     }
     $r = [
-        $ap['discord_name'],
+        !empty($ap['discord_name']) ? $ap['discord_name'] : $ap['discord_id'],
         $noShowCount,
         $ap['character'],
         $ap['guild_rank'],
@@ -804,7 +950,118 @@ fclose($apCSV);
 
 //build rosters from sign-ups
 
+$sql = <<<SQL
+    SELECT e.id AS 'event_id', e.zone_name, e.start, e.name AS 'event_name',
+        es.name AS 'signup_name', es.position, es.discord_id, es.class, es.role,
+        es.bench, es.late, es.tentative, es.absent, es.signed_up_at
+    FROM event e JOIN event_signup es
+    ON (e.id = es.event_id)
+    WHERE e.start >= ? AND e.server_id = "$rhServerId"
+    GROUP BY event_id, discord_id ORDER BY event_id, position;
+SQL;
+$queryEventSignups = $db->prepare($sql);
+
+$sql = <<<SQL
+    SELECT name, realm
+    FROM character
+    WHERE level = 60 AND discord_id = ? AND class = ?
+SQL;
+$queryCharacterByDiscordIdAndClass = $db->prepare($sql);
 //get signups
+
+$queryEventSignups->execute([$curDateTime->format('Y-m-d H:i:s')]);
+
+$issues = [];
+
+while ($s = $queryEventSignups->fetch(PDO::FETCH_ASSOC)) {
+    if ($s['absent'] !== "1" && !empty($s['class'])) {
+        $queryCharacterByDiscordIdAndClass->execute([$s['discord_id'],$s['class']]);
+        $characters = $queryCharacterByDiscordIdAndClass->fetchAll();
+        if (count($characters) > 0) {
+            $c = $characters[0];
+            if (count($characters) > 1) {
+                //more than one match by discord_id/class
+                echo "Found more than one character matching discord id/class:\n";
+                var_dump($characters);
+            }
+            //fix name
+            $fullName = $c['name']."-".camelCase($c['realm']);
+            if ($s['signup_name'] !== $fullName) {
+                echo "Fixing signup name for event ".$s['event_name'].": ". $s['signup_name']. " to $fullName\n";
+                $rh->fixEventSignupName($s['event_id'],$s['discord_id'],$fullName);
+            }
+        } else { //no characters found in database
+            //see if signup_name is actually a valid name-realm
+            $valid = false;
+            $signupName = explode("-",$s['signup_name']);
+            if (count($signupName) == 2) {
+                //see if realm is valid
+                $realm = unCamelCase($signupName[1]);
+                if (in_array($realm,$relatedRealms)) {
+                    $valid = true;
+                }
+            }
+            echo "No characters found for '".$s['signup_name']
+                    ."', discord id ".$s['discord_id'] . " class ".$s['class'];
+            if ($valid) {
+                echo ", but signup_name is valid.\n";
+            } else {
+                echo ", requesting name from user.\n";
+                $issues[$s['event_name']][] = $s;
+            }
+        }
+    }
+
+}
+
+//report to #issues:
+
+if (!empty($issues)) {
+
+    $content = [];
+
+    $content[] = "### We were unable to find in-game characters to match signups "
+        . "for the following upcoming events:";
+
+    foreach ($issues as $eventName => $badSignups) {
+        $content[] = "- ".$eventName.":";
+        foreach ($badSignups as $s) {
+            $content[] = " -  <@" .$s['discord_id'] . "> (" .$s['class']. ")";
+        }
+    }
+    if ($tmb) {
+        $content[] = "Please visit [thatsmybis](https://thatsmybis.com) and create the character you wish to bring, "
+                   . "and be sure to **include any special characters** and the realm **(Name-Realm)**. "
+                   . "If your in-game character's name is Bob from Pagle, your character's name "
+                   . "should be spelled **Bob-Pagle**.  Thank you!";
+    } else {
+        $content[] = "Please post in this channel the exact **Name-Realm** "
+                    ."of the in-game character you wish to bring, "
+                    ."including any special characters, so we can add you to the roster.  Thank you!";
+    }
+    $content = implode("\r\n",$content);
+
+    $postFields = array(
+        "username" => "Wonder Man",
+        "content" => $content,
+        //"file" => curl_file_create("prios/$prioCSVFileName","text/csv",$prioCSVFileName),
+    );
+
+    $ch = curl_init( $signupWebhook );
+    curl_setopt($ch,CURLOPT_HTTPHEADER,array('Content-type: multipart/form-data'));
+    curl_setopt( $ch, CURLOPT_POST, 1);
+    curl_setopt( $ch, CURLOPT_POSTFIELDS, $postFields);
+    curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt( $ch, CURLOPT_HEADER, 0);
+    curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
+
+    $response = curl_exec( $ch );
+
+    curl_close( $ch );
+
+}
+
+/*
 $sql = <<<SQL
     SELECT * FROM 
         (SELECT e.id AS 'event_id', e.zone_name, e.start, e.name as 'event_name',
@@ -814,7 +1071,7 @@ $sql = <<<SQL
         FROM event_signup es 
         JOIN event e, character c 
         ON (c.discord_id=es.discord_id AND es.class = c.class AND e.id = es.event_id) 
-        WHERE e.start >= ?
+        WHERE e.start >= ? AND server_id = "$rhServerId"
         GROUP BY event_id,character_id ORDER BY event_id,character_id)
     GROUP BY event_id,discord_id ORDER BY event_id,position;
 SQL;
@@ -826,12 +1083,13 @@ $currentEventId = 0;
 while ($s = $querySignups->fetch(PDO::FETCH_ASSOC)) {
     //fix signup name
     $fullName = $s['name'].'-'.$s['realm'];
-    if ($s['signup_name'] != $fullName) {
+    $fullName = str_replace(" ","",$fullName);
+    if ($s['signup_name'] !== $fullName) {
         echo "Fixing signup name for event ".$s['event_name'].": ". $s['signup_name']. " to $fullName\n";
         $rh->fixEventSignupName($s['event_id'],$s['discord_id'],$fullName);
-    }
+    } 
 }
-
+*/
 
 //find top wishlist items grouped by zone name
 $sql = <<<SQL
@@ -1117,6 +1375,32 @@ if (!empty($topWLItems)) {
     }
     fclose($prioCSV);
     //echo $tbl->getTable();
+    
+    //publish prios to webhook
+    $content = "Automated ULTRA output used to help us maintain prio lists."
+             . " If this was just posted, please know we may be"
+             . " in the process of adjusting prio list ranks."
+             . " As such, the 'current prio rank' column here may be out of date."
+             . " Check thatsmybis.com for the latest available information.";
+    
+    $postFields = array(
+        "username" => "ULTRAMAN",
+        "content" => $content,
+        "file" => curl_file_create("prios/$prioCSVFileName","text/csv",$prioCSVFileName),
+    );
+
+    $ch = curl_init( $prioWebhook );
+    curl_setopt($ch,CURLOPT_HTTPHEADER,array('Content-type: multipart/form-data'));
+    curl_setopt( $ch, CURLOPT_POST, 1);
+    curl_setopt( $ch, CURLOPT_POSTFIELDS, $postFields);
+    curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt( $ch, CURLOPT_HEADER, 0);
+    curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
+
+    $response = curl_exec( $ch );
+
+    curl_close( $ch );
+
 }
 
 ?>

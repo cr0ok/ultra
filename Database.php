@@ -48,7 +48,8 @@ class Database {
                 "raid_group_name"	TEXT,
                 /*"avg_ilvl"	INTEGER,
                 "last_login"	DATETIME,*/
-                "updated_at"    DATETIME DEFAULT CURRENT_TIMESTAMP
+                "updated_at"    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (name,realm)
             )',
             'CREATE TABLE IF NOT EXISTS "attendance" (
                 "report_id"	TEXT NOT NULL,

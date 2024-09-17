@@ -24,7 +24,11 @@ class WCL {
     private $mToken = NULL;
         
     private $mZones = array();
-    
+
+    private $mZoneLimits = [ //account for clashing vanilla/SOD zone IDs
+        'vanilla' => [2000,2006],
+        'sod' => [2007,2017]
+    ];
     private $mGameClasses = array();
     
     private $mReports = array();
@@ -176,9 +180,19 @@ QUERY;
         }    
 QUERY;
         $res = $this->queryAPI($gql,true,604800);
+        $minZone = 0;
+        $maxZone = PHP_INT_MAX;
+
+        if (array_key_exists($this->mGameVariant,$this->mZoneLimits)) {
+            $minZone = $this->mZoneLimits[$this->mGameVariant][0];
+            $maxZone = $this->mZoneLimits[$this->mGameVariant][1];
+        }
+        
         $classicWowExpansion = 0;
         foreach ($res->data->worldData->expansions[$classicWowExpansion]->zones as $zone) {
-            $zones[$zone->id] = $zone->name;
+            if ($zone->id >= $minZone && $zone->id <= $maxZone) {
+                $zones[$zone->id] = $zone->name;
+            } 
         }
         return $zones;
     }

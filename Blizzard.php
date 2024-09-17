@@ -151,27 +151,29 @@ class Blizzard {
         $ret = array();
         $namespace = 'dynamic';
         $params = [
-            //'realms.timezone' => $this->mServerTimeZone,
-            //'locale' => $this->mLocale
+            'realms.timezone' => $this->mServerTimeZone,
+            'locale' => $this->mLocale
         ];
         $q = $this->buildQuery('/data/wow/search/connected-realm',$namespace,$params);
+
         $r = $this->queryAPI($q);
+
         $relatedIndex = 0;
 
         foreach ($r->results as $index => $result) {
             
             foreach ($result->data->realms as $realm) {
-                if ($realm->name == $anchorRealm) {
+                if ($realm->name->{$this->mLocale} == $anchorRealm) {
                     $relatedIndex = $index;
+                    break;
                 }
-
             }
                
         }
 
         $ret = array();
         foreach ($r->results[$relatedIndex]->data->realms as $realm) {
-            array_push($ret,$realm->name);
+            array_push($ret,$realm->name->{$this->mLocale});
         }
         return $ret;
     }
