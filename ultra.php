@@ -1017,6 +1017,9 @@ while ($s = $queryEventSignups->fetch(PDO::FETCH_ASSOC)) {
 
 //report to #issues:
 
+$wh = new Webhook($signupWebhook);
+$wh->deleteLast();
+
 if (!empty($issues)) {
 
     $content = [];
@@ -1041,7 +1044,7 @@ if (!empty($issues)) {
                     ."including any special characters, so we can add you to the roster.  Thank you!";
     }
 
-    $wh = new Webhook($signupWebhook);
+    
     $wh->post($content);
 
 }
@@ -1340,6 +1343,7 @@ if (!empty($topWLItems)) {
 
     $wh->setUrl($prioWebhook);
     $wh->setUsername("ULTRAMAN");
+    $wh->deleteLast();
     $wh->post([$content],"prios/$prioCSVFileName","text/csv",$prioCSVFileName);
 
 }
