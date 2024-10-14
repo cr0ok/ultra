@@ -1,9 +1,10 @@
 prios/
 reports/
 cache/
-override/
+roster/
 vendor/
-*character-json*.json
+*.json
+!composer.json
 config.ini
-roster.db*
+*.db*
 *.dat

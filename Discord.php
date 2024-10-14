@@ -55,12 +55,15 @@ class Webhook {
             curl_close($ch);
         }
     }
-    public function post(array $content, $filepath = NULL, $mimeType = NULL, $filename = NULL) {
-        $content = implode("\r\n",$content);
+    public function post($content, $filepath = NULL, $mimeType = NULL, $filename = NULL) {
+        $c = $content;
+        if (is_array($content)) {
+            $c = implode("\r\n",$content);
+        }
 
         $postFields = [
             'username' => $this->mUsername,
-            'content' => $content
+            'content' => $c
         ];
         if (!is_null($filepath) && !is_null($mimeType) && !is_null($filename)) {
             $postFields['file'] = curl_file_create($filepath,$mimeType,$filename);

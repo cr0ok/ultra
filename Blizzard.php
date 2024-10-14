@@ -197,6 +197,30 @@ class Blizzard {
 
     }
 
+    public function findCharacter($characterName,$faction,$class,$reachableFromRealm) {
+        //only find a single match or none at all
+        $ret = false;
+        $possibleCharacters = $this->findCharacters($characterName,$faction,$class,$reachableFromRealm);        
+        if (count($possibleCharacters) > 1) {
+            $numMaxLevel = 0;
+            $possFound = false;
+            foreach ($possibleCharacters as $p) {
+                if ($p->level == 60) {
+                    $numMaxLevel++;
+                    $possFound = $p;
+                }
+            }
+            if ($numMaxLevel == 1) $ret = $p;
+        } else if (count($possibleCharacters) == 1) {
+            //only 1 match, good
+            $ret = $possibleCharacters[0];
+            
+        } else {
+            echo "Unable to find just one level 60 $class matching $characterName\n";            
+        }
+        return $ret;
+    }
+
     public function playableClassById($id) {
         return $this->mPlayableClasses[$id];
     }

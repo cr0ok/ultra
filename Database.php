@@ -14,6 +14,15 @@ class Database {
             'DROP TABLE IF EXISTS "prio"',
             'DROP TABLE IF EXISTS "wishlist"',
             'DROP TABLE IF EXISTS "received"',
+            'CREATE TABLE IF NOT EXISTS "zone_preferred_character" (
+                "zone_id" INTEGER NOT NULL,
+                "discord_id" INTEGER NOT NULL,
+                "character_id" INTEGER NOT NULL,
+                UNIQUE(zone_id,discord_id)
+            )',
+            'CREATE TABLE IF NOT EXISTS "signup_blacklist" (
+                "discord_id" INTEGER NOT NULL UNIQUE
+            )',
             'CREATE TABLE IF NOT EXISTS "zone" (
                 "id"	INTEGER NOT NULL UNIQUE,
                 "name"	TEXT NOT NULL,
@@ -46,8 +55,9 @@ class Database {
                 "public_note"	TEXT,
                 "officer_note"	TEXT,
                 "raid_group_name"	TEXT,
-                /*"avg_ilvl"	INTEGER,
-                "last_login"	DATETIME,*/
+                "banned" INTEGER DEFAULT 0,
+                "avg_ilvl"	INTEGER,
+                /*"last_login"	DATETIME,*/
                 "updated_at"    DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (name,realm)
             )',
@@ -93,6 +103,7 @@ class Database {
                 "position" INTEGER,
                 "class"	TEXT,
                 "role"	TEXT,
+                "spec"  TEXT,
                 "bench" INTEGER DEFAULT 0,
                 "late" INTEGER DEFAULT 0,
                 "tentative" INTEGER DEFAULT 0,
@@ -142,12 +153,12 @@ class Database {
             }
     }
 
-    public static function getInstance($bCreateTables = TRUE) {
+    public static function getInstance($dbName,$bCreateTables = TRUE) {
         if (empty(self::$instance)) {
             if(empty(self::$instance)) {
 
                 try {
-                    self::$instance = new PDO('sqlite:roster.db');
+                    self::$instance = new PDO('sqlite:'.$dbName);
                     self::$instance->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                     if ($bCreateTables) {
                         self::createTables();

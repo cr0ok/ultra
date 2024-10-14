@@ -42,9 +42,11 @@ class TMB {
         
     private $mTmbFilepath = NULL;
 
-    private $mRoster = array();
+    private $mRoster = [];
     
-    private $mLootTable = array();
+    private $mLootTable = [];
+
+    private $mInvalidCharacters = [];
 
 
      //PRIVATE
@@ -104,6 +106,10 @@ class TMB {
     public function roster() {
         return $this->mRoster;
     }
+
+    public function invalidCharacters() {
+        return $this->mInvalidCharacters;
+    }
     
     public function lootItemById($itemId) {
         $ret = NULL;
@@ -139,13 +145,12 @@ class TMB {
         $tmbData = json_decode($tmbJson,true);
         foreach ($tmbData as $c) {
             $nameParts = explode("-",$c['name']);
-            if (count($nameParts) !== 2) {
-                echo "INVALID NAME in TMB dump!\n";
-                print_r($nameParts);
+            if (count($nameParts) !== 2 || str_contains($c['name'], ' ')) {
+                $this->mInvalidCharacters[] = $c;
                 continue;
             }
-            $name = ucfirst(strtolower($nameParts[0]));
-            $realm = ucfirst(strtolower($nameParts[1]));
+            $name = ucfirst(trim($nameParts[0]));
+            $realm = ucfirst(trim($nameParts[1]));
             
             $received = array();
             $wishlist = array();

@@ -202,7 +202,7 @@ QUERY;
             $role = "DPS";
         }
         $ret = array();
-        echo "Querying character data for ".$id.", zone $zoneId, role $role.\n";
+        //echo "Querying character data for ".$id.", zone $zoneId, role $role.\n";
         $region = $this->mRegion;
         $zone = $zoneId > 0 ? "zoneID: $zoneId, " : ""; 
         $gql = 
@@ -217,14 +217,13 @@ QUERY;
         }
 QUERY;
         $res = $this->queryAPI($gql,true,21600);
-        if (!$res) return $ret;
         if (!isset($res->data->characterData)) {
             var_dump($res);
             return $ret;
         }
         $data = $res->data->characterData->character;
         
-        if (!empty($data)) {
+        if (!empty($data) && isset($data->zoneRankings)) {
             $ret['wcl_id'] = $id;
             $ret['class'] = $data->classID > 0 ? $this->gameClassNameById($data->classID): NULL;
             $ret['bestPerfAvg'] = $data->zoneRankings->bestPerformanceAverage;
@@ -248,6 +247,9 @@ QUERY;
                 $ret['spec'] = NULL;
                 $ret['role'] = NULL;
             }
+        } else {
+            echo "WCL error fetching character data.\n";
+            var_dump($data);
         }
     
         return $ret;    
@@ -257,7 +259,8 @@ QUERY;
         if ($role == "Ranged" || $role == "Melee") {
             $role = "DPS";
         }
-        echo "Querying character data for ".$name."-".$realm.", zone $zoneId, role $role.\n";
+        $ret = [];
+        //echo "Querying character data for ".$name."-".$realm.", zone $zoneId, role $role.\n";
         $region = $this->mRegion;
         $zone = $zoneId > 0 ? "zoneID: $zoneId, " : ""; 
         $gql = 
@@ -275,10 +278,15 @@ QUERY;
         }
 QUERY;
         $res = $this->queryAPI($gql,true,21600);
+        if (!isset($res->data->characterData)) {
+            var_dump($res);
+            return $ret;
+        }
         $data = $res->data->characterData->character;
         $ret = array();
-        if (!empty($data)) {
+        if (!empty($data) && isset($data->zoneRankings)) {
             $ret['wcl_id'] = $data->id;
+            $ret['zone_id'] = $zoneId;
             $ret['class'] = $data->classID > 0 ? $this->gameClassNameById($data->classID): NULL;
             $ret['bestPerfAvg'] = $data->zoneRankings->bestPerformanceAverage;
             $ret['medianPerfAvg'] = $data->zoneRankings->medianPerformanceAverage;
@@ -301,6 +309,9 @@ QUERY;
                 $ret['spec'] = NULL;
                 $ret['role'] = NULL;
             }
+        } else {
+            echo "WCL error fetching character data.\n";
+            var_dump($data);
         }
     
         return $ret;    
@@ -491,8 +502,8 @@ QUERY;
         $zoneId = 0;
         if (is_numeric($zoneNameOrId)) {
             $zoneId = $zoneNameOrId;
-        } else if (!empty($zoneName)) {
-            $zoneId = array_search($zoneName,$this->mZones);
+        } else if (!empty($zoneNameOrId)) {
+            $zoneId = array_search($zoneNameOrId,$this->mZones);
         }
         return $this->queryCharacterData($name,$realm,$zoneId,$role);
     }

@@ -12,8 +12,8 @@ class Event {
 	 public $signups = array();
 	 public $errors = array();
      public function zoneName() {
-         $ret = "";
-         if (stristr($this->name,"naxx")) {
+        $ret = "";
+        if (stristr($this->name,"naxx")) {
             $ret = "Naxxramas";
         } else if (stristr($this->name,"bwl")) {
             $ret = "Blackwing Lair";
@@ -25,6 +25,8 @@ class Event {
             $ret = "Ruins of Ahn'Qiraj";
         } else if (stristr($this->name,"zg") || stristr($this->name,"gurub")) {
             $ret = "Zul'Gurub";
+        } else if (stristr($this->name,"ony")) {
+            $ret = "Onyxia";
         }
         return $ret;
      }
@@ -58,6 +60,7 @@ class Event {
 class Signup {
 	public $role;
 	public $characterClass;
+    public $spec;
 	public $name;
 	public $discordId;
 	public $dateTime;
@@ -229,6 +232,7 @@ class RaidHelper {
             
             $class = $eventDataSignup->className;
             $spec = isset($eventDataSignup->specName) ? $eventDataSignup->specName : NULL;
+            $signup->spec = $spec;
                 
             if ($class == "Bench") {
                 $signup->isBenched = true;
@@ -278,11 +282,11 @@ class RaidHelper {
                 $class = "Priest";
             } else	if ($spec == "Holy1" || $spec == "Protection1" || $spec == "Retribution") {
                 $class = "Paladin";
-            } else if ($spec == "Destruction") {
+            } else if ($spec == "Destruction" || $spec == "Demonology") {
                 $class = "Warlock";
             } else if ($spec == "Combat" || $spec == "Assassination" || $spec == "Subtlety") {
                 $class = "Rogue";
-            } else if ($spec == "Marksmanship") {
+            } else if ($spec == "Marksmanship" || $spec == "Survival" || $spec == "Beastmastery") {
                 $class = "Hunter";
             }
             
