@@ -566,7 +566,7 @@ class Roster {
             if (count($characterNameParts) == 2) {
                 $bValidCharacterName = true;
                 $characterName = $characterNameParts[0];
-                $characterRealm = $characterNameParts[1];
+                $characterRealm = self::unCamelCase($characterNameParts[1]);
             }
             if ($bValidCharacterName && !$rs->absent()) {
                 $bBanned = false;

@@ -394,7 +394,7 @@ $sql = <<<SQL
     UPDATE character
     SET tmb_id = :tmb_id,
         discord_name = :discord_name, 
-        discord_id = :discord_id,
+        discord_id = coalesce(:discord_id,discord_id),
         raid_group_name = :raid_group_name,
         prof_1 = :prof_1,
         prof_2 = :prof_2,
@@ -1100,11 +1100,11 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
         }
         if (!empty($fullName) && !$isLevel60) {
             echo "  !!!  ". $fullName . " is not level 60!\n";
-            $issues['not_level_60'][] = "<@".$s['discord_id']."> (".$fullName.")";
+            $issues['not_level_60'][] = "<@".$s['discord_id']."> (".$fullName.", ".$s['class'].")";
         }
         if (!empty($fullName) && $tmb && !$hasTmbId) {
             echo "  !!!  ". $fullName . " is missing TMB character!\n";
-            $issues['no_tmb_character'][] = "<@".$s['discord_id']."> (".$fullName.")";
+            $issues['no_tmb_character'][] = "<@".$s['discord_id']."> (".$fullName.", ".$s['class'].")";
         }
         if (!empty($fullName) && $avgIlvl > 0 && $avgIlvl < 68 && ($zoneAbbr == "naxx" || $zoneAbbr == "aq40")) {
             if (!in_array($fullName,$undergeared)) {
@@ -1145,6 +1145,7 @@ foreach ($issues as $k => $a) {
 
 
 if (!empty($discordRowsToAdd)) {
+    
     $body = new Google_Service_Sheets_ValueRange();
     $body->setValues($discordRowsToAdd);
     $params = ['valueInputOption' => 'RAW'];
@@ -1154,6 +1155,8 @@ if (!empty($discordRowsToAdd)) {
         $body,
         $params
     );
+    
+    //var_dump($discordRowsToAdd);
 }
 
 foreach ($futureEventIds as $eventId) {
@@ -1219,19 +1222,21 @@ if ($broadcast && !empty($issues)) {
     $content[] = "### Signup issues:";
 
     if (!empty($issues['no_character'])) {
-        $content[] = "- I couldn't find an in-game character for:";
+        $content[] = "- I couldn't find or didn't know how to look for an in-game character for:";
         foreach ($issues['no_character'] as $i) {
             $content[] = "  - ".$i;
         }
     }
     if (!empty($issues['not_level_60'])) {
-        $content[] = "- These characters aren't level 60 yet:";
+        $content[] = "- These characters may not be level 60 yet,"
+            . " or the player used a different discord account on thatsmybis.com than they used to sign up for raids here:";
         foreach ($issues['not_level_60'] as $i) {
             $content[] = "  - ".$i;
         }
     }
     if ($tmb && !empty($issues['no_tmb_character'])) {
-        $content[] = "- These characters don't exist on thatsmybis.com yet:";
+        $content[] = "- These characters don't exist on thatsmybis.com, are not yet claimed by a player,"
+            . " or the player used a different discord account on thatsmybis.com than they used to sign up for raids here:";
         foreach ($issues['no_tmb_character'] as $i) {
             $content[] = "  - ".$i;
         }
@@ -1241,7 +1246,8 @@ if ($broadcast && !empty($issues)) {
         $content[] = "Please visit [thatsmybis](https://thatsmybis.com) and create the character you wish to bring, "
                    . "and be sure to **include any special characters** and the realm **(Name-Realm)**. "
                    . "If your in-game character's name is Bob from ".$guildRealm.", your character's name "
-                   . "should be spelled **Bob-".$guildRealm."** with no spaces.  Thank you!";
+                   . "should be spelled **Bob-".$guildRealm."** with no spaces.  If you can't create it, please contact "
+                   . "an officer directly.  Thank you!";
     } elseif (!empty($issues['no_character'])) {
         $content[] = "Please post in this channel the exact **Name-Realm** "
                     ."of the in-game character you wish to bring, "
@@ -1506,7 +1512,7 @@ foreach ($topWLItems as $index => $w) {
     $w['bigWinsStr'] = str_replace('=',':',http_build_query($w['bigWins'],null,', '));
 
     $U = max($U,0);
-    $w['U'] = $U;
+    //$w['U'] = $U;
     $w['dateLastUpgrade'] = $dateLastUpgrade->getTimestamp() > 0 
         ? $dateLastUpgrade->format('Y-m-d') : '';
     //L - time on list 
@@ -1517,19 +1523,21 @@ foreach ($topWLItems as $index => $w) {
         'since_date' => 0
     ]);
     $historicalAttendance = $queryPlayerAttendance->fetch(PDO::FETCH_ASSOC);
-    $dateFirstRaid = DateTime::createFromFormat('Y-m-d H:i:s',$historicalAttendance['date_first']);
-    $secsSinceFirstRaid = $dateFirstRaid ? ($curDateTime->getTimestamp() - $dateFirstRaid->getTimestamp()) : 0;
+    //$dateFirstRaid = DateTime::createFromFormat('Y-m-d H:i:s',$historicalAttendance['date_first']);
+    //$secsSinceFirstRaid = $dateFirstRaid ? ($curDateTime->getTimestamp() - $dateFirstRaid->getTimestamp()) : 0;
     
     
     $L = 0;
     $secsOnList = $w['days_on_list'] * 86400;
+    /*
     if ($secsSinceFirstRaid == 0 || $secsOnList > $secsSinceFirstRaid) {
         echo $w['fullname'] . " ranked ".$w['item'] . " #1 before first raid, adjusting L.\n";
         $secsOnList = $secsSinceFirstRaid;
     }
+    */
     $L = $secsOnList / $sixMonths;
     $L = min($L,1);
-    $w['L'] = $L;
+    //$w['L'] = $L;
     $w['listDays'] = round($secsOnList/86400);
 
     //T - time since big upgrade 
@@ -1540,7 +1548,7 @@ foreach ($topWLItems as $index => $w) {
         $T = $timeSinceBigUpgrade / $sixMonths;
         $T = min($T,1);
     }
-    $w['T'] = $T;
+    //$w['T'] = $T;
 
     //R - num raids in zone attended in past 6 months 
     $sixMonthsAgo = clone $curDateTime;
@@ -1564,6 +1572,16 @@ foreach ($topWLItems as $index => $w) {
     }
     $w['R'] = $R;
     $w['numRaidsAttended'] = $playerAttendance['attended'];
+
+    //adjust L and T for R (prorate)
+    //$U = min($U,$R);
+    $L = min($L,$R);
+    $T = min($T,$R);
+    $w['U'] = $U;
+    $w['L'] = $L;
+    $w['T'] = $T;
+    
+    
 
     //A - recent attendance ratio 
     $A = 0;
