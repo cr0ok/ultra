@@ -1278,7 +1278,7 @@ if ($broadcast && isset($undergearedWebhook)) {
     }
 
 }
-
+/*
 $sql = <<<SQL
     SELECT
         za.date_first,
@@ -1295,6 +1295,32 @@ $sql = <<<SQL
     WHERE c.discord_id = :discord_id AND z.name = :zone_name AND r.start_time >= :since_date
 SQL;
 $queryPlayerAttendance = $db->prepare($sql);
+*/
+
+$sql = <<<SQL
+    SELECT
+        za.date_first,
+		COUNT(r.id) AS 'attended', 
+		(   SELECT COUNT(DISTINCT(r2.id))
+			FROM report r2 
+			JOIN zone z2, zone_attendance za2, character c2
+			ON (z2.id=r2.zone_id 
+                AND za2.zone_id = z2.id 
+				AND za2.character_wcl_id = c2.wcl_id
+                AND z2.name = :zone_name 
+                AND c2.discord_id = :discord_id 
+                AND r2.start_time >= za2.date_first
+                AND r2.start_time >= :since_date)
+        ) AS 'available' 
+    FROM character c JOIN report r, zone z, attendance a, zone_attendance za
+    ON (r.id=a.report_id AND z.id = r.zone_id AND c.wcl_id = a.character_wcl_id
+        AND za.character_wcl_id = c.wcl_id 
+        AND za.zone_id = z.id
+        AND z.name = :zone_name
+        AND c.discord_id = :discord_id
+        AND r.start_time >= :since_date) 
+SQL;
+$queryPlayerAttendance = $db->prepare($sql);
 
 $sql = <<<SQL
     SELECT
@@ -1305,7 +1331,7 @@ $sql = <<<SQL
 			JOIN zone z2, zone_attendance za2, character c2
 			ON (z2.id=z.id AND z2.id=r2.zone_id AND za2.zone_id = z2.id 
 				AND za2.character_wcl_id = c2.wcl_id AND c2.wcl_id = c.wcl_id)
-			WHERE r2.start_time >= za2.date_first AND r2.start_time >= :since_date) AS 'available' 
+			WHERE r2.start_time >= :since_date) AS 'available' 
     FROM character c JOIN report r, zone z, attendance a, zone_attendance za
     ON (r.id=a.report_id AND z.id = r.zone_id AND c.wcl_id = a.character_wcl_id
         AND za.character_wcl_id = c.wcl_id AND za.zone_id = z.id) 
@@ -1670,7 +1696,6 @@ if (!empty($topWLItems)) {
 
     foreach ($topWLItems as $i) {
         if ($i['item'] != $currentItemName) {
-            //$tbl->addSeparator();
             $currentItemName = $i['item'];
         }
         $eligible = $i['eligible'] ? 'Yes' : 'No';

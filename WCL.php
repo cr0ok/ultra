@@ -425,6 +425,7 @@ QUERY;
                 $reportZone = $rep->zoneId;
                 if ($reportZone > 0) {
                     $index = $reportDate . "-" . $reportZone;
+                    //echo $rep->title . "-->" .$index . "\n";
                     if (!isset($reports[$index])) {
                         $reports[$index] = $rep;
                         $this->mReports[$index] = $rep;
