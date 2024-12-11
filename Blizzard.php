@@ -27,7 +27,7 @@ class Blizzard {
     private function __construct($region = '',$timeZone = '', $gameVariant = '', $clientId = '', $clientSecret = '') {
         if (!empty($region)) $this->mRegion = strtolower($region);
         if (!empty($timeZone)) $this->mServerTimeZone = $timeZone;
-        if (!empty($gameVariant)) $this->mGameVariant = "-".$gameVariant."-";
+        if (!empty($gameVariant)) $this->mGameVariant = $gameVariant;
         if (!empty($clientId)) $this->mClientId = $clientId;
         if (!empty($clientSecret)) $this->mClientSecret = $clientSecret;
         //get token
@@ -88,9 +88,10 @@ class Blizzard {
     }
 
     protected function namespaceSlug($namespace) {
-        return $namespace.$this->mGameVariant.$this->mRegion;
+        return $namespace."-".$this->mGameVariant."-".$this->mRegion;
     }
 
+    /*
     protected function buildQuery($endpoint,$namespace,$params = array()) {
         $ret = "https://".$this->mRegion.".".$this->mAPI.$endpoint
             ."?namespace=".$this->namespaceSlug($namespace)."&locale=".$this->mLocale;
@@ -99,8 +100,17 @@ class Blizzard {
         }
         return $ret;
     }
+    */
+    protected function buildQuery($endpoint,$params = array()) {
+        $ret = "https://".$this->mRegion.".".$this->mAPI.$endpoint
+            ."?locale=".$this->mLocale;
+        if (!empty($params)) {
+            $ret .= "&" . http_build_query($params);
+        }
+        return $ret;
+    }
 
-    protected function queryAPI($query,$storeToCache = true, $cacheDuration = 14400) {
+    protected function queryAPI($query,$namespace,$storeToCache = true, $cacheDuration = 14400) {
         $ret = false;
         //try fetching from cache first
         $ret = $this->fetchFromCache($query,$cacheDuration);
@@ -109,7 +119,9 @@ class Blizzard {
 
             $ch = curl_init($query);
             $auth = 'Authorization: '.$this->mToken->token_type.' '.$this->mToken->access_token;
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', $auth]);
+            $region = 'Region: '.$this->mRegion;
+            $ns = 'Battlenet-Namespace: '.$this->namespaceSlug($namespace);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', $auth, $region, $ns]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);            
             $ret = json_decode(curl_exec($ch));
@@ -127,11 +139,11 @@ class Blizzard {
     }
 
     protected function fetchGameData() {
-        $r = $this->queryAPI($this->buildQuery('/data/wow/playable-class/index','static'));
+        $r = $this->queryAPI($this->buildQuery('/data/wow/playable-class/index'),'static');
         foreach ($r->classes as $class) {
             $this->mPlayableClasses[$class->id] = $class->name;
         }
-        $r = $this->queryAPI($this->buildQuery('/data/wow/playable-race/index','static'));
+        $r = $this->queryAPI($this->buildQuery('/data/wow/playable-race/index'),'static');
         foreach ($r->races as $race) {
             $this->mPlayableRaces[$race->id] = $race->name;
         }
@@ -154,9 +166,9 @@ class Blizzard {
             'realms.timezone' => $this->mServerTimeZone,
             'locale' => $this->mLocale
         ];
-        $q = $this->buildQuery('/data/wow/search/connected-realm',$namespace,$params);
+        $q = $this->buildQuery('/data/wow/search/connected-realm',$params);
 
-        $r = $this->queryAPI($q);
+        $r = $this->queryAPI($q,$namespace);
 
         $relatedIndex = 0;
 
@@ -233,7 +245,7 @@ class Blizzard {
         $nameSlug = $this->slug($characterName);
         $realmSlug = $this->slug($characterRealm);
         $endpoint = "/profile/wow/character/$realmSlug/$nameSlug";
-        $query = $this->buildQuery($endpoint,$namespace);
+        $query = $this->buildQuery($endpoint);
         return $this->queryAPI($query,$namespace);
     }
 
@@ -242,7 +254,7 @@ class Blizzard {
         $nameSlug = $this->slug($characterName);
         $realmSlug = $this->slug($characterRealm);
         $endpoint = "/profile/wow/character/$realmSlug/$nameSlug/status";
-        $query = $this->buildQuery($endpoint,$namespace);
+        $query = $this->buildQuery($endpoint);
         return $this->queryAPI($query,$namespace);
     }
     
@@ -251,8 +263,8 @@ class Blizzard {
         $nameSlug = $this->slug($characterName);
         $realmSlug = $this->slug($characterRealm);
         $endpoint = "/profile/wow/character/$realmSlug/$nameSlug/statistics";
-        $query = $this->buildQuery($endpoint,$namespace);
-        return $this->queryAPI($query);
+        $query = $this->buildQuery($endpoint);
+        return $this->queryAPI($query,$namespace);
     }
     
     public function characterSpecs($characterName,$characterRealm) {
@@ -260,8 +272,8 @@ class Blizzard {
         $nameSlug = $this->slug($characterName);
         $realmSlug = $this->slug($characterRealm);
         $endpoint = "/profile/wow/character/$realmSlug/$nameSlug/specializations";
-        $query = $this->buildQuery($endpoint,$namespace);
-        return $this->queryAPI($query);
+        $query = $this->buildQuery($endpoint);
+        return $this->queryAPI($query,$namespace);
     }
     
     public function guild($guildName,$guildRealm) {
@@ -269,8 +281,8 @@ class Blizzard {
         $nameSlug = $this->slug($guildName);
         $realmSlug = $this->slug($guildRealm);
         $endpoint = "/data/wow/guild/$realmSlug/$nameSlug";
-        $query = $this->buildQuery($endpoint,$namespace);
-        return $this->queryAPI($query);
+        $query = $this->buildQuery($endpoint);
+        return $this->queryAPI($query,$namespace);
     }
     
     public function guildRoster($guildName,$guildRealm) {
@@ -278,8 +290,8 @@ class Blizzard {
         $nameSlug = $this->slug($guildName);
         $realmSlug = $this->slug($guildRealm);
         $endpoint = "/data/wow/guild/$realmSlug/$nameSlug/roster";
-        $query = $this->buildQuery($endpoint,$namespace);
-        return $this->queryAPI($query);
+        $query = $this->buildQuery($endpoint);
+        return $this->queryAPI($query,$namespace);
     }
     
 }
