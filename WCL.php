@@ -92,6 +92,7 @@ class WCL {
             curl_setopt($ch, CURLOPT_USERPWD, "$this->mClientId:$this->mClientSecret");
             curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(["grant_type" => "client_credentials"]));
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
             $ret = json_decode(curl_exec($ch));
             curl_close($ch);
             //cache result

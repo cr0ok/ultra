@@ -77,6 +77,7 @@ class Blizzard {
             curl_setopt($ch, CURLOPT_USERPWD, "$this->mClientId:$this->mClientSecret");
             curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(["grant_type" => "client_credentials"]));
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
             $ret = json_decode(curl_exec($ch));
             curl_close($ch);
             //cache result
@@ -123,7 +124,8 @@ class Blizzard {
             $ns = 'Battlenet-Namespace: '.$this->namespaceSlug($namespace);
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', $auth, $region, $ns]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);            
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);        
             $ret = json_decode(curl_exec($ch));
             curl_close($ch);
             //cache result

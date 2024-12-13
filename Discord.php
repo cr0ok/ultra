@@ -47,6 +47,7 @@ class Webhook {
             curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
             curl_setopt( $ch, CURLOPT_HEADER, 0);
             curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
             $deleteResponse = curl_exec($ch);
             $httpCode = curl_getinfo($ch,CURLINFO_HTTP_CODE);
             if ($httpCode == 204) {
@@ -76,6 +77,7 @@ class Webhook {
         curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1);
         curl_setopt( $ch, CURLOPT_HEADER, 0);
         curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
 
         $postResponse = json_decode(curl_exec( $ch ));
         curl_close( $ch );

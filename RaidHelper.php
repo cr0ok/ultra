@@ -134,6 +134,7 @@ class RaidHelper {
         curl_setopt($ch, CURLOPT_URL,'http://' . 'tinyurl.com/api-create.php?url=' . urlencode($url));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
         $tinyUrl = curl_exec($ch);
         curl_close($ch);
         
@@ -162,6 +163,7 @@ class RaidHelper {
         curl_setopt($ch, CURLOPT_HTTPHEADER, [$auth,$contentType]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
         $res = json_decode(curl_exec($ch));
         curl_close($ch); 
     }
@@ -184,6 +186,7 @@ class RaidHelper {
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
         $res = json_decode(curl_exec($ch));
         curl_close($ch); 
         $parsedEvents = array();
