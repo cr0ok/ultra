@@ -285,7 +285,7 @@ class RaidHelper {
                 $class = "Priest";
             } else	if ($spec == "Holy1" || $spec == "Protection1" || $spec == "Retribution") {
                 $class = "Paladin";
-            } else if ($spec == "Destruction" || $spec == "Demonology") {
+            } else if ($spec == "Destruction" || $spec == "Demonology" || $spec == "Affliction") {
                 $class = "Warlock";
             } else if ($spec == "Combat" || $spec == "Assassination" || $spec == "Subtlety") {
                 $class = "Rogue";
