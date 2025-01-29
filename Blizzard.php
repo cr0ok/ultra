@@ -187,7 +187,8 @@ class Blizzard {
 
         $ret = array();
         foreach ($r->results[$relatedIndex]->data->realms as $realm) {
-            array_push($ret,$realm->name->{$this->mLocale});
+            //array_push($ret,$realm->name->{$this->mLocale});
+            $ret[$realm->id] = $realm->name->{$this->mLocale};
         }
         return $ret;
     }

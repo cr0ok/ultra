@@ -347,7 +347,7 @@ if (isset($r->members)) {
 
     foreach ($r->members as $member) {    
         if ($member->character->level == 60) {
-            
+            $realmName = $relatedRealms[$member->character->realm->id];
             $iLvl = 0;
             $lastLogin = new DateTime();
             $lastLogin->setTimestamp(0);
@@ -356,14 +356,15 @@ if (isset($r->members)) {
             $row = [
                 $member->character->id,
                 $member->character->name,
-                $member->character->realm->name,
+                $realmName,
+                //$member->character->realm->name,
                 $guildName,
                 $member->character->level,
                 $blizz->playableRaceById($member->character->playable_race->id),
                 $blizz->playableClassById($member->character->playable_class->id),
                 $member->rank,
             ];
-            echo "Inserting " . $member->character->name . "-".$member->character->realm->name."\n";
+            echo "Inserting " . $member->character->name . "-".$realmName."\n";
             $insertCharacterFromBlizz->execute($row);
             
         }
