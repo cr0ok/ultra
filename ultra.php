@@ -935,7 +935,7 @@ SQL;
 $banCharacter = $db->prepare($sql);
 
 $sql = <<<SQL
-    SELECT name, realm, tmb_id, level, avg_ilvl
+    SELECT name, realm, tmb_id, level, avg_ilvl, archetype
     FROM character
     WHERE discord_id = ? AND class = ?
 SQL;
@@ -965,6 +965,12 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
         $futureEventIds[] = $s['event_id'];
     }
     if ($s['absent'] !== "1" && !empty($s['class'])) {
+        $signupRole = $s['role'];
+        if ($signupRole == "Melee" || $signupRole == "Ranged") {
+            $signupRole = "DPS";
+        } else if ($signupRole == "Healer") {
+            $signupRole = "Heal";
+        }
         $fullName = "";
         $queryCharacterByDiscordIdAndClass->execute([$s['discord_id'],$s['class']]);
         $characters = $queryCharacterByDiscordIdAndClass->fetchAll();
@@ -987,6 +993,25 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
         }
         if (count($characters) > 0) {
 
+            
+            foreach ($characters as $char) {
+                $fqn = $char['name']."-".Roster::camelCase($char['realm']);
+                $characterRole = $char['archetype'];
+                if (empty($characterRole) || $characterRole == $signupRole) {
+                    $fullName = $fqn;
+                    $avgIvl = $char['avg_ilvl'];
+                    if (!empty($char['tmb_id'])) {
+                        $hasTmbId = true;
+                    }
+                    if ($char['level'] == 60) {
+                        $isLevel60 = true;
+                    }
+                    break;
+                } else {
+                    echo "Skipping $fqn since signup role ($signupRole) doesn't match character role ($characterRole).\n";
+                }
+            }
+            /*
             $c = $characters[0];
             $avgIlvl = $c['avg_ilvl'];
             if (!empty($c['tmb_id'])) {
@@ -1000,10 +1025,12 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
 
             if (count($characters) > 1) {
                 //more than one match by discord_id/class
-                //check overrides for preferred zone
+                
                 echo $s['event_name'].": found > 1 character matching ".$s['class'].", ".$s['discord_id'].":\n";
                 foreach ($characters as $char) {
                     echo " ".$char['name'].'-'.Roster::camelCase($char['realm']) . "\n";
+
+                    //check overrides for preferred zone
                     if (!empty($oc)) {
                         foreach ($oc as $c) {
                             if (in_array($zoneId,$c['preferredZoneIds'])) {
@@ -1022,7 +1049,7 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
                     }
                 }
             }
-            
+            */
         } else { //no characters found in database
             //see if signup_name is actually a valid name-realm
             $valid = false;
@@ -1033,7 +1060,7 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
                 if (in_array($realm,$relatedRealms)) {
                     $name = $signupName[0];
                     $profile = $blizz->profileSummary($name,$realm);
-                    if ($profile) {
+                    if ($profile && $profile->character_class->name == $s['class']) {
                         $fullName = ucfirst($signupName[0])."-".ucfirst($signupName[1]);
                         $avgIlvl = $profile->average_item_level;
                         $row = [$fullName,$s['class'],(string)$s['discord_id'],0,""];
@@ -1042,7 +1069,7 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
                             echo "->Adding $fullName from Raid-Helper to Discord sheet\n";
                         }
                     } else {
-                        echo "No Blizzard profile found for $name-$realm!\n";
+                        echo "No Blizzard profile found for $name-$realm matching class ".$s['class']."!\n";
                     }
                 }
             } else {
