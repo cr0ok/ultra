@@ -997,8 +997,8 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
             
             foreach ($characters as $char) {
                 $fqn = $char['name']."-".Roster::camelCase($char['realm']);
-                $fullName = $fqn;
                 $characterRole = $char['archetype'];
+                $fullName = $fqn;
                 $avgIvl = $char['avg_ilvl'];
                 if (!empty($char['tmb_id'])) {
                     $hasTmbId = true;
@@ -1006,7 +1006,10 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
                 if ($char['level'] == 60) {
                     $isLevel60 = true;
                 }
-                if (empty($characterRole) || $characterRole == $signupRole) {                    
+
+                
+                if ($characterRole == $signupRole) {
+                    $roleMismatch = false;
                     break;
                 } else {
                     $roleMismatch = true;
