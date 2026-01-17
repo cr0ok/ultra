@@ -1010,7 +1010,7 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
                     break;
                 } else {
                     $roleMismatch = true;
-                    echo "$fqn signup role ($signupRole) doesn't match character role ($characterRole).\n";
+                    echo "  !!!  $fqn signup role ($signupRole) doesn't match character role ($characterRole).\n";
                 }
             }
             /*
