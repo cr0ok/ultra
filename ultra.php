@@ -980,6 +980,7 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
         $hasTmbId = false;
         $isLevel60 = false;
         $avgIlvl = 0;
+        $roleMismatch = false;
 
         if (isset($override['character'][$s['discord_id']])) {
             $oc = $override['character'][$s['discord_id']];
@@ -996,19 +997,20 @@ while ($s = $queryFutureSignups->fetch(PDO::FETCH_ASSOC)) {
             
             foreach ($characters as $char) {
                 $fqn = $char['name']."-".Roster::camelCase($char['realm']);
+                $fullName = $fqn;
                 $characterRole = $char['archetype'];
-                if (empty($characterRole) || $characterRole == $signupRole) {
-                    $fullName = $fqn;
-                    $avgIvl = $char['avg_ilvl'];
-                    if (!empty($char['tmb_id'])) {
-                        $hasTmbId = true;
-                    }
-                    if ($char['level'] == 60) {
-                        $isLevel60 = true;
-                    }
+                $avgIvl = $char['avg_ilvl'];
+                if (!empty($char['tmb_id'])) {
+                    $hasTmbId = true;
+                }
+                if ($char['level'] == 60) {
+                    $isLevel60 = true;
+                }
+                if (empty($characterRole) || $characterRole == $signupRole) {                    
                     break;
                 } else {
-                    echo "Skipping $fqn since signup role ($signupRole) doesn't match character role ($characterRole).\n";
+                    $roleMismatch = true;
+                    echo "$fqn signup role ($signupRole) doesn't match character role ($characterRole).\n";
                 }
             }
             /*
@@ -1172,7 +1174,7 @@ foreach ($issues as $k => $a) {
 }
 
 
-if (!empty($discordRowsToAdd)) {
+if (!empty($discordRowsToAdd) && isset($service)) {
     
     $body = new Google_Service_Sheets_ValueRange();
     $body->setValues($discordRowsToAdd);
