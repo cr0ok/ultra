@@ -227,11 +227,11 @@ QUERY;
         if (!empty($data) && isset($data->zoneRankings)) {
             $ret['wcl_id'] = $id;
             $ret['class'] = $data->classID > 0 ? $this->gameClassNameById($data->classID): NULL;
-            $ret['bestPerfAvg'] = $data->zoneRankings->bestPerformanceAverage;
-            $ret['medianPerfAvg'] = $data->zoneRankings->medianPerformanceAverage;
+            $ret['bestPerfAvg'] = $data->zoneRankings->bestPerformanceAverage ?? 0;
+            $ret['medianPerfAvg'] = $data->zoneRankings->medianPerformanceAverage ?? 0;
             $specs = array();
             $totals = array();
-            foreach ($data->zoneRankings->rankings as $ranking) {
+            foreach ($data->zoneRankings->rankings ?? [] as $ranking) {
                 if (!isset($ranking->spec)) continue;
                 if (!array_key_exists($ranking->spec,$specs)) {
                     $specs[$ranking->spec] = 1;
@@ -289,11 +289,11 @@ QUERY;
             $ret['wcl_id'] = $data->id;
             $ret['zone_id'] = $zoneId;
             $ret['class'] = $data->classID > 0 ? $this->gameClassNameById($data->classID): NULL;
-            $ret['bestPerfAvg'] = $data->zoneRankings->bestPerformanceAverage;
-            $ret['medianPerfAvg'] = $data->zoneRankings->medianPerformanceAverage;
+            $ret['bestPerfAvg'] = $data->zoneRankings->bestPerformanceAverage ?? 0;
+            $ret['medianPerfAvg'] = $data->zoneRankings->medianPerformanceAverage ?? 0;
             $specs = array();
             $totals = array();
-            foreach ($data->zoneRankings->rankings as $ranking) {
+            foreach ($data->zoneRankings->rankings ?? [] as $ranking) {
                 if (!isset($ranking->spec)) continue;
                 if (!array_key_exists($ranking->spec,$specs)) {
                     $specs[$ranking->spec] = 1;
@@ -437,7 +437,7 @@ QUERY;
         }
          uasort($reports, function($a,$b) {
             //sort chronologically
-            return ($a->startDateTime > $b->startDateTime);
+                return $a->startDateTime <=> $b->startDateTime;
         });
         return $reports;
     }

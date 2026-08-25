@@ -12,7 +12,7 @@ class Blizzard {
     private $mAuthUri = 'https://oauth.battle.net/authorize'; //not used this class
     private $mTokenUri = 'https://oauth.battle.net/token';
     private $mAPI = 'api.blizzard.com';
-    private $mGameVariant = '-';
+    private $mGameVariant = '';
 
     private $mCacheDir = "cache";
     private $mCacheDuration = 3600; //1 hour
@@ -89,6 +89,9 @@ class Blizzard {
     }
 
     protected function namespaceSlug($namespace) {
+        if (empty($this->mGameVariant)) {
+            return $namespace."-".$this->mRegion;
+        }
         return $namespace."-".$this->mGameVariant."-".$this->mRegion;
     }
 
@@ -113,8 +116,9 @@ class Blizzard {
 
     protected function queryAPI($query,$namespace,$storeToCache = true, $cacheDuration = 14400) {
         $ret = false;
+        $cacheKey = "v2\n".$namespace."\n".$query;
         //try fetching from cache first
-        $ret = $this->fetchFromCache($query,$cacheDuration);
+        $ret = $this->fetchFromCache($cacheKey,$cacheDuration);
         if (!$ret) {
             //make new request
 
@@ -126,11 +130,25 @@ class Blizzard {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);        
-            $ret = json_decode(curl_exec($ch));
+            $body = curl_exec($ch);
+            $curlError = curl_error($ch);
+            $httpCode = curl_getinfo($ch,CURLINFO_HTTP_CODE);
             curl_close($ch);
+            if ($body === false) {
+                echo "Blizzard API request failed: ".$curlError."\n";
+                return false;
+            }
+            $ret = json_decode($body);
+            if ($ret === null && json_last_error() !== JSON_ERROR_NONE) {
+                echo "Blizzard API returned invalid JSON (HTTP ".$httpCode."): ".json_last_error_msg()."\n";
+                return false;
+            }
+            if ($httpCode >= 400 || isset($ret->code) || isset($ret->status)) {
+                echo "Blizzard API error (HTTP ".$httpCode."): ".($ret->detail ?? $ret->title ?? 'Unknown error')."\n";
+            }
             //cache result
-            if (!empty($ret) && $storeToCache) {
-                $this->storeToCache($query,$ret);
+            if (!empty($ret) && !isset($ret->code) && !isset($ret->status) && $storeToCache) {
+                $this->storeToCache($cacheKey,$ret);
             } 
         }
         return $ret;
@@ -225,7 +243,7 @@ class Blizzard {
                     $possFound = $p;
                 }
             }
-            if ($numMaxLevel == 1) $ret = $p;
+            if ($numMaxLevel == 1) $ret = $possFound;
         } else if (count($possibleCharacters) == 1) {
             //only 1 match, good
             $ret = $possibleCharacters[0];

@@ -71,16 +71,19 @@ $performanceZone = $ini["general"]["performanceZone"];
 $sinceDate = new DateTime("now");
 $sinceDate->modify("-2 months");
 $raiderRank = $ini["general"]["raiderRank"]; //guild ranks between 0 (guild master) and this number are considered "raiders"
-$googleAuth = $ini["google"]["auth"];
+$googleConfig = $ini["google"] ?? [];
+$googleAuth = $googleConfig["auth"] ?? '';
 //$googleDeveloperKey = $ini["google"]["developerKey"];
-$googleSpreadsheetId = $ini["google"]["spreadsheetId"];
-$attRanges = explode(",",$ini["google"]["attendanceRanges"]);
+$googleSpreadsheetId = $googleConfig["spreadsheetId"] ?? '';
+$attRanges = !empty($googleConfig["attendanceRanges"])
+    ? explode(",",$googleConfig["attendanceRanges"])
+    : [];
 $sheetAttendanceRanges = [];
 foreach ($attRanges as $range) {
     [$zone,$r] = explode("!",$range);
     $sheetAttendanceRanges[$zone] = $r;
 }
-$discordRange = $ini["google"]["discordRange"];
+$discordRange = $googleConfig["discordRange"] ?? '';
 $rhApiKey = $ini["raid-helper"]["apiKey"]; //used to fix raid-helper signup names to match TMB character names
 $rhServerId = $ini["raid-helper"]["serverId"];
 $wclClientId = $ini["warcraftlogs"]["clientId"];
@@ -1568,7 +1571,7 @@ foreach ($topWLItems as $index => $w) {
         }
         $U -= $mod;
     }
-    $w['bigWinsStr'] = str_replace('=',':',http_build_query($w['bigWins'],null,', '));
+    $w['bigWinsStr'] = str_replace('=',':',http_build_query($w['bigWins'],'',', '));
 
     $U = max($U,0);
     //$w['U'] = $U;
@@ -1742,7 +1745,7 @@ if (!empty($topWLItems)) {
             $i['spec'],
             $i['num_prios'],
             //$i['avg_ilvl'],
-            round($i['performance'],1),
+            round($i['performance'] ?? 0,1),
             $i['bigWinsStr'],
             $i['listDays'].'d',
             $i['dateLastUpgrade'],
