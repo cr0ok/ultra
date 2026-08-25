@@ -46,7 +46,7 @@ class Event {
         });
      }
      public function sortSignupsByGuildRank() {
-         usort($event->signups, function($a,$b) {
+         usort($this->signups, function($a,$b) {
             $rank = (isset($a->character) && isset($b->character)) ? $a->character->rankNum <=> $b->character->rankNum : 0;
             $signupTime = $a->dateTime > $b->dateTime; 
             if ($rank == 0) {
@@ -76,7 +76,7 @@ class Signup {
 }
 
 class RaidHelper {     
-    private static $sAPI = "https://raid-helper.dev/api";
+    private static $sAPI = "https://raid-helper.xyz/api";
     private static $sRoster = NULL;
     private $mApiKey = NULL;
     
@@ -151,7 +151,7 @@ class RaidHelper {
     
     public function fixEventSignupName($eventId,$discordId,$fullName) {
         $fullName = str_replace(" ","",$fullName); //strip spaces
-        $url = self::$sAPI."/v2/events/".$eventId."/signups/".$discordId;
+        $url = self::$sAPI."/v4/events/".$eventId."/signups/".$discordId;
         $ch = curl_init();
         $auth = 'Authorization: '.$this->mApiKey;
         $contentType = 'Content-Type: application/json; charset=utf-8';
@@ -168,7 +168,7 @@ class RaidHelper {
         curl_close($ch); 
     }
     public function parseEvents($serverId, $startTime = 0, $endTime = 0, $channelId = '') {
-        $url = self::$sAPI."/v3/servers/".$serverId."/events";
+        $url = self::$sAPI."/v4/servers/".$serverId."/events";
         $headers = array();
         array_push($headers,'Authorization: '.$this->mApiKey);
         
@@ -200,7 +200,7 @@ class RaidHelper {
     }
         
     public function parseEvent($eventId) {
-        $eventData = json_decode(file_get_contents(self::$sAPI."/v2/events/".$eventId));
+        $eventData = json_decode(file_get_contents(self::$sAPI."/v4/events/".$eventId));
         
         $event = new Event;
 
@@ -208,7 +208,7 @@ class RaidHelper {
 
         $event->name = $eventData->title;
         $dt = new DateTime();
-        $dt->setTimeStamp($eventData->startTime);
+        $dt->setTimestamp($eventData->startTime);
         $event->startTime = $dt;
         $event->createdBy = $eventData->leaderName;
         $event->description = $eventData->description;
