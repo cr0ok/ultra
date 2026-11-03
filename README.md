@@ -1,5 +1,7 @@
 # ULTRA
 
+- DEVELOPMENT DISCONTINUED - please consider using [raidify_ultra](https://github.com/cr0ok/raidify_ultra) instead.
+
 A loot prio recommendation algorithm for LC guilds using thatsmybis.com (TMB) which considers:
 
 - **U** - How many "big upgrades" (S-, A-, or B-tiered items) a player has received (on any character associated with their discord ID) in the zone where the item drops within the past 6 months, not counting items won with "off-spec" rolls
